@@ -7,7 +7,6 @@ import (
 	"ingestion/src/middleware"
 	"ingestion/src/model"
 	"ingestion/src/service"
-	"io"
 	"net/http"
 	"time"
 
@@ -20,73 +19,96 @@ import (
 
 
 func UploadMaterial(w http.ResponseWriter, r *http.Request) {
-    // Parse form
-    r.ParseMultipartForm(20 << 20)
+	// Parse form (20 MB)
+	r.ParseMultipartForm(20 << 20)
 
 	subject := r.FormValue("subject")
 	content := r.FormValue("content")
-	userID := r.FormValue("userid")
 	role := r.FormValue("role")
 
-	objID , err := primitive.ObjectIDFromHex(userID)
-	if err != nil {
-		http.Error(w, "invalid id format", http.StatusBadRequest)
+	// Auth Context
+	ctxValue := r.Context().Value(middleware.AuthKey)
+	if ctxValue == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	authCtx, ok := ctxValue.(middleware.AuthContext)
+	if !ok {
+		http.Error(w, "invalid auth context", http.StatusUnauthorized)
 		return
 	}
 
-	if subject == "" || content == "" || userID == "" || role == "" {
-		http.Error(w, "subject, content, userid, and role are required fields", http.StatusBadRequest)
+	// Required fields
+	if subject == "" || content == "" || role == "" {
+		http.Error(w, "subject, content, and role are required fields", http.StatusBadRequest)
 		return
 	}
 
-	file, _, err := r.FormFile("file")
+	// Retrieve file
+	file, header, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, "file is required", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-    // Read file bytes
-    pdfBytes, err := io.ReadAll(file)
-    if err != nil {
-        http.Error(w, "failed reading file", http.StatusBadRequest)
-        return
-    }
-
-    // Extract text directly from bytes
-    rawText, err := service.ExtractPdfFromBytes(pdfBytes)
-    if err != nil {
-        http.Error(w, "failed extracting text: "+err.Error(), http.StatusInternalServerError)
-        return
-    }
-
-    // Save rawText to MongoDB...
-	doc := model.Content{
-		Subject:   	subject,
-		Content:   	content,
-		RawText:   	rawText,
-		UserID:    	objID,
-		Role: 		role,
-		CreatedAt: 	time.Now(),
+	// ---------- 1️⃣ Upload PDF to Cloudinary ----------
+	cloudinaryURL, err := service.UploadPDF(file, header.Filename)
+	if err != nil {
+		http.Error(w, "failed uploading PDF to Cloudinary: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	// Insert into MongoDB
+	// Reset file pointer for reading again (Cloudinary consumes it)
+	_, err = file.Seek(0, 0)
+	if err != nil {
+		http.Error(w, "failed to reset file pointer", http.StatusInternalServerError)
+		return
+	}
+
+	// ---------- 2️⃣ Read file bytes for extraction ----------
+	// pdfBytes, err := io.ReadAll(file)
+	// if err != nil {
+	// 	http.Error(w, "failed reading file", http.StatusBadRequest)
+	// 	return
+	// }
+
+	// ---------- 3️⃣ Extract raw text from PDF ----------
+	// rawText, err := service.ExtractPdfFromBytes(pdfBytes)
+	// if err != nil {
+	// 	http.Error(w, "failed extracting text: "+err.Error(), http.StatusInternalServerError)
+	// 	return
+	// }
+
+	// ---------- 4️⃣ Save Metadata + Cloudinary Link ----------
+	doc := model.Content{
+		Subject:      subject,
+		Content:      content,
+		// RawText:      rawText,
+		UserID:       authCtx.UserID,
+		Role:         role,
+		PDFUrl:       cloudinaryURL, // ⬅️ NEW FIELD
+		CreatedAt:    time.Now(),
+	}
+
+	// Insert MongoDB
 	res, err := db.GetIngestionCollection().InsertOne(r.Context(), doc)
 	if err != nil {
 		http.Error(w, "Database insert failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Final response
+	// ---------- 5️⃣ Response ----------
 	resp := map[string]interface{}{
-		"message":     "Material uploaded successfully",
-		"content_id":  res.InsertedID,
-		"raw_text_len": len(rawText),
+		"message":       "Material uploaded successfully",
+		"content_id":    res.InsertedID,
+		"cloudinaryUrl": cloudinaryURL,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
+
 
 
 func GetMaterialByID(w http.ResponseWriter, r *http.Request) {
@@ -150,14 +172,10 @@ func GetMaterialByUserID(w http.ResponseWriter, r *http.Request){
 	idParam := authCtx.UserID
 
 	// Convert to ObjectID
-	objID, err := primitive.ObjectIDFromHex(idParam)
-	if err != nil {
-		http.Error(w, "invalid id format", http.StatusBadRequest)
-		return
-	}
+	
 
 	// Create filter
-	filter := bson.M{"user_id": objID}
+	filter := bson.M{"user_id": idParam}
 
 	// Query MongoDB
 	var result []model.Content

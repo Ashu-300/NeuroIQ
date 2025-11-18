@@ -7,16 +7,18 @@ import (
 )
 
 type Content struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	ID        primitive.ObjectID 	`bson:"_id,omitempty" json:"id"`
 
-	Subject   string             `bson:"subject" json:"subject"`
-	Content   string             `bson:"content" json:"content"`
-	RawText   string             `bson:"raw_text" json:"raw_text"`
+	Subject   string             	`bson:"subject" json:"subject"`
+	Content   string             	`bson:"content" json:"content"`
+	// RawText   string             	`bson:"raw_text" json:"raw_text"`
 
 	// New Fields
-	UserID    primitive.ObjectID `bson:"user_id" json:"user_id"`
-	Role      string             `bson:"role" json:"role"`
+	UserID    string 				`bson:"user_id" json:"user_id"`
+	Role      string             	`bson:"role" json:"role"`
 
-	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
+	PDFUrl    string 				`bson:"pdfurl" json:"pdfurl"`
+
+	CreatedAt time.Time          	`bson:"created_at" json:"created_at"`
 }
 

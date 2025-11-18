@@ -1,66 +1,42 @@
 package service
 
 import (
+	"bytes"
 	"context"
-	"errors"
-	"fmt"
-	"ingestion/src/config"
+	"io"
 	"mime/multipart"
-	"path/filepath"
-	"strings"
+
+	"ingestion/src/config"
 
 	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 )
 
-// ------------------------
-// Upload Image
-// ------------------------
 
-var Cloud = config.GetCloudinaryCloud()
-
-func UploadImage(file multipart.File, filename string, folder string) (string, string, error) {
-	if Cloud == nil {
-		return "", "", errors.New("cloudinary not initialized")
-	}
-
+func UploadPDF(file multipart.File, fileName string) (string, error) {
 	ctx := context.Background()
 
-	ext := strings.ToLower(filepath.Ext(filename)) // .jpg, .png, etc.
+	// Read bytes
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		return "", err
+	}
 
-	publicID := folder + "/" + strings.TrimSuffix(filename, ext)
+	reader := bytes.NewReader(fileBytes)
+
+
 
 	uploadParams := uploader.UploadParams{
-		Folder:   folder,
-		PublicID: publicID,
+		ResourceType: "raw",      // MUST be raw
+		Type:         "upload",
+		Folder:       "pdf_files",
+		PublicID:     fileName,
+		Format:       "pdf",
 	}
 
-	res, err := Cloud.Upload.Upload(ctx, file, uploadParams)
+	uploadResult, err := config.Cloud.Upload.Upload(ctx, reader, uploadParams)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
-	// secure_url → to save in MongoDB  
-	// public_id → needed for delete
-	return res.SecureURL, res.PublicID, nil
-}
-
-// ------------------------
-// Delete Image
-// ------------------------
-func DeleteImage(publicID string) error {
-	if Cloud == nil {
-		return errors.New("cloudinary not initialized")
-	}
-
-	ctx := context.Background()
-
-	_, err := Cloud.Upload.Destroy(ctx, uploader.DestroyParams{
-		PublicID: publicID,
-	})
-
-	if err != nil {
-		return fmt.Errorf("failed to delete image: %v", err)
-	}
-
-	return nil
+	return uploadResult.SecureURL, nil
 }

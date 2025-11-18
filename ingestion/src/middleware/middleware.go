@@ -39,7 +39,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		claims, err := jwtutil.ValidateToken(tokenString)
 		if err != nil {
-			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return
 		}
 
@@ -56,3 +56,4 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
+

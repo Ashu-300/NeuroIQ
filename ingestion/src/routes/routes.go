@@ -15,8 +15,8 @@ func SetupIngestionRoutes() chi.Router {
 		r.Use(middleware.AuthMiddleware)
 
 		r.Post("/upload" , controller.UploadMaterial)
-		r.Get("/get/:id" , controller.GetMaterialByID )
-		r.Get("/get/userid" , controller.GetMaterialByUserID)
+		r.Get("/get/{id}" , controller.GetMaterialByID )
+		r.Get("/get" , controller.GetMaterialByUserID)
 	}) 
 
 
