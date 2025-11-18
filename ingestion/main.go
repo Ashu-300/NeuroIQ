@@ -18,7 +18,7 @@ func main() {
 		log.Fatalf("⚠️ error : %v" , err.Error())
 	}
 
-	config.UniPdfInit()
+	config.InitCloudinary()
 	db.InitDB()
 	
 	
