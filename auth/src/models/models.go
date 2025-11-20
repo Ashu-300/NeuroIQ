@@ -16,9 +16,9 @@ type User struct {
 }
 
 const (
-	RoleStudent = "student"
 	RoleTeacher = "teacher"
 	RoleAdmin   = "admin"
+	RoleStudent = "student"
 
 	StatusActive   = "active"
 	StatusInactive = "inactive"

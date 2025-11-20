@@ -28,6 +28,7 @@ func ConnectDB() {
 	fmt.Println("✅ Connected to PostgreSQL")
 
 	createUsersTable()
+	createStudentsTable()
 }
 
 // Auto create users table if not exists
@@ -50,4 +51,42 @@ func createUsersTable() {
 	}
 
 	fmt.Println("✅ Users table ready")
+}
+
+func createStudentsTable() {
+	schema := `
+	CREATE TABLE IF NOT EXISTS students (
+		id UUID PRIMARY KEY,
+		first_name VARCHAR(100) NOT NULL,
+		last_name VARCHAR(100) NOT NULL,
+
+		roll_number VARCHAR(50) UNIQUE NOT NULL,
+		enrollment_no VARCHAR(50) UNIQUE,
+
+		branch VARCHAR(20) NOT NULL,        -- CSE/IT/ECE/MECH/etc
+		semester INT NOT NULL CHECK (semester >= 1 AND semester <= 8),
+		section VARCHAR(10),
+
+		email VARCHAR(120) UNIQUE NOT NULL,
+		phone VARCHAR(20),
+
+		user_id UUID,                        -- FK to users table
+		active BOOLEAN NOT NULL DEFAULT TRUE,
+
+		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+
+		CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_students_branch ON students(branch);
+	CREATE INDEX IF NOT EXISTS idx_students_semester ON students(semester);
+	CREATE INDEX IF NOT EXISTS idx_students_user_id ON students(user_id);
+	`
+	_, err := DB.Exec(schema)
+	if err != nil {
+		log.Fatalf("❌ Failed to create students table: %v", err)
+	}
+
+	fmt.Println("✅ Students table ready")
 }
