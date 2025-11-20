@@ -4,13 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"ingestion/src/db"
+	"ingestion/src/dto"
+	"ingestion/src/kafka"
 	"ingestion/src/middleware"
 	"ingestion/src/model"
 	"ingestion/src/service"
+	"ingestion/src/utils"
+	"io"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -59,32 +66,49 @@ func UploadMaterial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reset file pointer for reading again (Cloudinary consumes it)
-	_, err = file.Seek(0, 0)
+	
+	// Read file bytes BEFORE goroutine
+	pdfBytes, err := io.ReadAll(file)
 	if err != nil {
-		http.Error(w, "failed to reset file pointer", http.StatusInternalServerError)
+		http.Error(w, "failed reading file", http.StatusBadRequest)
 		return
 	}
 
-	// ---------- 2️⃣ Read file bytes for extraction ----------
-	// pdfBytes, err := io.ReadAll(file)
-	// if err != nil {
-	// 	http.Error(w, "failed reading file", http.StatusBadRequest)
-	// 	return
-	// }
+	go func(pdfBytes []byte){
 
-	// ---------- 3️⃣ Extract raw text from PDF ----------
-	// rawText, err := service.ExtractPdfFromBytes(pdfBytes)
-	// if err != nil {
-	// 	http.Error(w, "failed extracting text: "+err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
+		// ---------- 3️⃣ Extract raw text from PDF ----------
+		rawText, err := service.ExtractPdfFromBytes(pdfBytes)
+		if err != nil {
+			log.Println("error extracting text:", err)
+			return
+		}
+
+		cleanText := utils.CleanText(rawText)
+
+
+		chunks := utils.SplitByUnits(cleanText)
+
+		prouducer := kafka.GetKafkaProducer()
+		
+		for _ , val := range chunks {
+			chunkStruct := dto.TextChunkEvent{
+				ChunkID: uuid.New().String(),
+				Unit: val.Unit,
+				Content: val.Content,
+				Subject: subject,
+				TeacherID: authCtx.UserID,
+				UploadedBy: authCtx.Role,
+				CreatedAt: time.Now(),
+			}
+			prouducer.SendJSON("syllabus",  "unit", chunkStruct)
+			log.Println("✔ Message sent!")
+		}
+	}(pdfBytes)
 
 	// ---------- 4️⃣ Save Metadata + Cloudinary Link ----------
 	doc := model.Content{
 		Subject:      subject,
 		Content:      content,
-		// RawText:      rawText,
 		UserID:       authCtx.UserID,
 		Role:         role,
 		PDFUrl:       cloudinaryURL, // ⬅️ NEW FIELD
@@ -106,9 +130,9 @@ func UploadMaterial(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(resp)
 }
-
 
 
 func GetMaterialByID(w http.ResponseWriter, r *http.Request) {
@@ -147,6 +171,7 @@ func GetMaterialByID(w http.ResponseWriter, r *http.Request) {
 
 	// Send JSON response
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusFound)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"data":    result,
@@ -171,9 +196,7 @@ func GetMaterialByUserID(w http.ResponseWriter, r *http.Request){
 
 	idParam := authCtx.UserID
 
-	// Convert to ObjectID
 	
-
 	// Create filter
 	filter := bson.M{"user_id": idParam}
 
@@ -197,6 +220,7 @@ func GetMaterialByUserID(w http.ResponseWriter, r *http.Request){
 
 	// Return as JSON
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusFound)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"count":   len(result),
@@ -204,4 +228,90 @@ func GetMaterialByUserID(w http.ResponseWriter, r *http.Request){
 	})
 
 
+}
+
+
+func UploadMaterialByID(w http.ResponseWriter , r *http.Request){
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Extract ID from URL
+	idParam := chi.URLParam(r, "id")
+	if idParam == "" {
+		http.Error(w, "id is required", http.StatusBadRequest)
+		return
+	}
+
+	// Convert to ObjectID
+	objID, err := primitive.ObjectIDFromHex(idParam)
+	if err != nil {
+		http.Error(w, "invalid id format", http.StatusBadRequest)
+		return
+	}
+
+	// Create filter
+	filter := bson.M{"_id": objID}
+
+	// Query MongoDB
+	var result model.Content
+	err = db.GetIngestionCollection().FindOne(ctx, filter).Decode(&result)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			http.Error(w, "material not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "database error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", result.PDFUrl, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	pdfBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "failed reading file", http.StatusBadRequest)
+		return
+	}
+	
+	go func(pdfBytes []byte){
+
+		rawText, err := service.ExtractPdfFromBytes(pdfBytes)
+		if err != nil {
+			log.Println("error extracting text:", err)
+			return
+		}
+
+		cleanText := utils.CleanText(rawText)
+
+
+		chunks := utils.SplitByUnits(cleanText)
+
+		prouducer := kafka.GetKafkaProducer()
+		
+		for _ , val := range chunks {
+			chunkStruct := dto.TextChunkEvent{
+				ChunkID: uuid.New().String(),
+				Unit: val.Unit,
+				Content: val.Content,
+				Subject: result.Subject,
+				TeacherID: result.UserID,
+				UploadedBy: result.Role,
+				CreatedAt: time.Now(),
+			}
+			prouducer.SendJSON("syllabus",  "unit", chunkStruct)
+			log.Println("✔ Message sent!")
+		}
+	}(pdfBytes)
+	jsonResp := map[string]interface{}{
+		"message":"material uploaded to ai for question generation",
+	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(jsonResp)
 }

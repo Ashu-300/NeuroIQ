@@ -48,3 +48,27 @@ type UserUpdateDTO struct {
 	Role        *string `json:"role" validate:"omitempty,oneof=student teacher admin"`
 	Institution *string `json:"institution" validate:"required"`
 }
+
+type StudentFilterDTO struct {
+	Prefix   string `json:"prefix" validate:"required"`
+	Branch   string `json:"branch" validate:"required"`
+	Semester int    `json:"semester" validate:"required,min=1,max=8"`
+}
+
+
+type StudentRegisterDTO struct {
+	FirstName    string `json:"first_name" validate:"required"`
+	LastName     string `json:"last_name" validate:"required"`
+
+	RollNumber   string `json:"roll_number" validate:"required"`
+	EnrollmentNo string `json:"enrollment_no" validate:"required"`
+
+	Branch       string `json:"branch" validate:"required,oneof=CSE IT ECE MECH CIVIL EE EC"`
+	Semester     int    `json:"semester" validate:"required,min=1,max=8"`
+	Section      string `json:"section" validate:"omitempty"`
+
+	Email        string `json:"email" validate:"required,email"`
+	Phone        string `json:"phone" validate:"omitempty"`
+
+	UserID       string `json:"user_id" validate:"required"` // FK: user must exist before creating student
+}

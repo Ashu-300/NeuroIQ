@@ -10,13 +10,16 @@ import (
 func SetuAuthRoutes() chi.Router {
 	router := chi.NewRouter()
 
-	router.Post("/register" , controller.Signup)
+	router.Post("/signup" , controller.Signup)
 	router.Post("/login" , controller.Login)
+	router.Post("/register/student" , controller.RegisterStudent)
+	router.Get("/get/studentlist" , controller.GetStudentsByPrefixBranchSemester)
 
 	router.Group(func (protected chi.Router){
 		protected.Use(middleware.AuthMiddleware)
-		protected.Get("/getuser" , controller.GetUser)
+		protected.Get("/get/user" , controller.GetUser)
 		protected.Put("/update" , controller.UpdateUser)
+		protected.Get("/get/student" , controller.GetStudentProfile)
 	})
 
 	return router
