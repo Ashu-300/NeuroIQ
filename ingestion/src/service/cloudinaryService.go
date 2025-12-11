@@ -3,8 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
-	"io"
-	"mime/multipart"
+	
 
 	"ingestion/src/config"
 
@@ -12,14 +11,10 @@ import (
 )
 
 
-func UploadPDF(file multipart.File, fileName string) (string, error) {
+func UploadPDF(fileBytes []byte, fileName string) (string, error) {
 	ctx := context.Background()
 
-	// Read bytes
-	fileBytes, err := io.ReadAll(file)
-	if err != nil {
-		return "", err
-	}
+	
 
 	reader := bytes.NewReader(fileBytes)
 

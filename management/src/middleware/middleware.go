@@ -1,11 +1,12 @@
 package middleware
 
 import (
+	"context"
 	"management/src/dto"
 	"management/src/jwtutil"
-	"context"
 	"net/http"
 	"strings"
+
 )
 
 
@@ -40,6 +41,11 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		claims, err := jwtutil.ValidateToken(tokenString)
 		if err != nil {
 			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+			return
+		}
+
+		if claims.Role != "teacher" || claims.Role != "admin" {
+			http.Error(w , "Not Authorized for the service" , http.StatusUnauthorized)
 			return
 		}
 

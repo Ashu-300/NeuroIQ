@@ -1,4 +1,4 @@
-package repositories
+package repository
 
 import (
 	"context"
@@ -12,19 +12,19 @@ import (
 // Insert room
 func CreateRoom(ctx context.Context, room models.Room) error {
 	query := `
-		INSERT INTO rooms (room_id, capacity, rows, columns, branch)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO rooms (room_id, rows, columns, branch)
+		VALUES ($1, $2, $3, $4)
 	`
 
 	_, err := db.DB.Exec(ctx, query,
-		room.RoomID, room.Capacity, room.Rows, room.Columns, room.Branch,
+		room.RoomID, room.Rows, room.Columns, room.Branch,
 	)
 	return err
 }
 
 // Get all rooms
 func GetAllRooms(ctx context.Context) ([]models.Room, error) {
-	query := `SELECT room_id, capacity, rows, columns, branch FROM rooms`
+	query := `SELECT room_id, rows, columns, branch FROM rooms`
 
 	rows, err := db.DB.Query(ctx, query)
 	if err != nil {
@@ -36,7 +36,7 @@ func GetAllRooms(ctx context.Context) ([]models.Room, error) {
 
 	for rows.Next() {
 		var rm models.Room
-		err := rows.Scan(&rm.RoomID, &rm.Capacity, &rm.Rows, &rm.Columns, &rm.Branch)
+		err := rows.Scan(&rm.RoomID, &rm.Rows, &rm.Columns, &rm.Branch)
 		if err != nil {
 			return nil, err
 		}
@@ -49,13 +49,13 @@ func GetAllRooms(ctx context.Context) ([]models.Room, error) {
 // Get room by ID
 func GetRoomByID(ctx context.Context, roomID string) (*models.Room, error) {
 	query := `
-		SELECT room_id, capacity, rows, columns, branch 
+		SELECT room_id, rows, columns, branch 
 		FROM rooms WHERE room_id = $1
 	`
 
 	var room models.Room
 	err := db.DB.QueryRow(ctx, query, roomID).Scan(
-		&room.RoomID, &room.Capacity, &room.Rows, &room.Columns, &room.Branch   ,
+		&room.RoomID, &room.Rows, &room.Columns, &room.Branch   ,
 	)
 
 	if errors.Is(err, pgx.ErrNoRows) {
