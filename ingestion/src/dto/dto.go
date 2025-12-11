@@ -22,3 +22,8 @@ type TextChunkEvent struct {
 	UploadedBy string    `json:"uploaded_by"`
 	CreatedAt  time.Time `json:"created_at"`
 }
+
+type UnitChunk struct {
+	Unit    string `json:"unit"`
+	Content string `json:"content"`
+}

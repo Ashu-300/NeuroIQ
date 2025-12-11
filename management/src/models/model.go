@@ -8,7 +8,6 @@ import (
 
 type Room struct {
 	RoomID           string `db:"room_id"`
-	Capacity         int    `db:"capacity"`
 	Rows             int    `db:"rows"`
 	Columns          int    `db:"columns"`
 	Branch   		 string `db:"branch"`
