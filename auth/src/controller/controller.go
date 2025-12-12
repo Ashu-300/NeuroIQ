@@ -108,7 +108,6 @@ func RegisterStudent(w http.ResponseWriter, r *http.Request) {
 		FirstName:    student.FirstName,
 		LastName:     student.LastName,
 		RollNumber:   student.RollNumber,
-		EnrollmentNo: student.EnrollmentNo,
 		Branch:       student.Branch,
 		Semester:     student.Semester,
 		Section:      student.Section,
