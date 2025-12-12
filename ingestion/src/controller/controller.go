@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"ingestion/src/db"
@@ -13,7 +14,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -31,6 +35,9 @@ func UploadMaterial(w http.ResponseWriter, r *http.Request) {
 
 	subject := r.FormValue("subject")
 	role := r.FormValue("role")
+	numberOf3marks , _ := strconv.Atoi(r.FormValue("num_3marks"))
+	numberOf4marks , _ := strconv.Atoi(r.FormValue("num_4marks"))
+	numberOf10marks , _ := strconv.Atoi(r.FormValue("num_10marks"))
 
 	// Auth Context
 	ctxValue := r.Context().Value(middleware.AuthKey)
@@ -85,29 +92,45 @@ func UploadMaterial(w http.ResponseWriter, r *http.Request) {
 	cleanText := utils.CleanText(rawText)
 	chunks := utils.SplitByUnits(cleanText)
 	unitsContent = chunks
-	producer := kafka.GetKafkaProducer()
-
-	go func(chunks []dto.UnitChunk , producer *kafka.Producer) {
-		for _, val := range chunks {
-			chunkStruct := dto.TextChunkEvent{
-				ChunkID:    uuid.New().String(),
-				Unit:       val.Unit,
-				Content:    val.Content,
-				Subject:    subject,
-				TeacherID:  authCtx.UserID,
-				UploadedBy: authCtx.Role,
-				CreatedAt:  time.Now(),
-			}
-		
-
-			if err := producer.SendJSON("syllabus", "unit", chunkStruct); err != nil {
-				log.Println("failed to send message:", err)
-			} else {
-				log.Println("✔ Message sent!")
-			}
-		}
-	}(chunks, producer)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	llmBaseURI := os.Getenv("LLM_URI")
+	llmEndPoint := llmBaseURI + "/generate-questions"
 	
+	var questionList []interface{}
+	var wg sync.WaitGroup
+	var mu  sync.Mutex
+	
+	for _ , val := range chunks {
+		wg.Add(1)
+		go func() (error) {
+			defer wg.Done()
+			llmRequest := dto.LlmRequestBody{
+				Subject: subject,
+				UnitSyllabus: val.Content,
+				Num3Marks: numberOf3marks,
+				Num4Marks: numberOf4marks,
+				Num10Marks: numberOf10marks,
+			}
+			jsonBody , _ := json.Marshal(&llmRequest)
+			req , err := http.NewRequest("POST" , llmEndPoint , bytes.NewBuffer(jsonBody) )
+			resp, err := client.Do(req)
+			if err != nil {
+				log.Printf("llm service request failed: %v", err)
+				return err
+			}
+			defer resp.Body.Close()
+			var llmresponse dto.LlmResponse
+			_ = json.NewDecoder(resp.Body).Decode(&llmresponse)
+			mu.Lock()
+			questionList = append(questionList, llmresponse)
+			mu.Unlock()
+			return nil
+		}()
+	}
+	wg.Wait()
+		
 	cloudinaryURL, err := service.UploadPDF(pdfBytes, header.Filename)
 	if err != nil {
 		http.Error(w, "failed uploading PDF to Cloudinary: "+err.Error(), http.StatusInternalServerError)
@@ -136,6 +159,7 @@ func UploadMaterial(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"message":       "Material uploaded successfully",
 		"content_id":    res.InsertedID,
+		"Questions" : 	questionList,
 		"cloudinaryUrl": cloudinaryURL,
 	}
 
