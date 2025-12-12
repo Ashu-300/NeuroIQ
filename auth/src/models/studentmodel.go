@@ -8,7 +8,6 @@ type Student struct {
 	LastName  string `json:"last_name"`
 
 	RollNumber   string `json:"roll_number"`   // Unique per university/college
-	EnrollmentNo string `json:"enrollment_no"` // Optional but many colleges require this
 
 	Branch   string `json:"branch"`   // CSE, IT, ECE, MECH, CIVIL
 	Semester int    `json:"semester"` // 1 to 8
