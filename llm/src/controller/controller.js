@@ -4,7 +4,6 @@ const generateQuestions = async (req, res) => {
   try {
     const {
       subject,
-      unitName,        // e.g. "Unit 2: Network Security"
       unitSyllabus,    // full syllabus text for that unit
       num3Marks,       // number of 3-mark questions to generate
       num4Marks,       // number of 4-mark questions to generate

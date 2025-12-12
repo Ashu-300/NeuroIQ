@@ -27,3 +27,16 @@ type UnitChunk struct {
 	Unit    string `json:"unit"`
 	Content string `json:"content"`
 }
+
+type LlmRequestBody struct {
+	Subject				string			`json:"subject"`
+	UnitSyllabus    	string			`json:"unit_syllabus"`
+	Num3Marks      		int				`json:"num_3marks"`
+	Num4Marks     		int				`json:"num_4marks"`
+	Num10Marks  		int				`json:"num_5marks"`
+}
+
+type LlmResponse struct {
+	Sucess 		bool	`json:"success"`
+	Questions	string	`json:"questions"`
+}
