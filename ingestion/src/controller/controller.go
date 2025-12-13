@@ -102,35 +102,86 @@ func UploadMaterial(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	var mu  sync.Mutex
 	
-	for _ , val := range chunks {
+	var firstErr error
+	var errMu sync.Mutex
+
+	for _, val := range chunks {
 		wg.Add(1)
-		go func() (error) {
+
+		go func(val dto.UnitChunk) {
 			defer wg.Done()
+
+			// build request body
 			llmRequest := dto.LlmRequestBody{
-				Subject: subject,
+				Subject:      subject,
 				UnitSyllabus: val.Content,
-				Num3Marks: numberOf3marks,
-				Num4Marks: numberOf4marks,
-				Num10Marks: numberOf10marks,
+				Num3Marks:    numberOf3marks,
+				Num4Marks:    numberOf4marks,
+				Num10Marks:   numberOf10marks,
 			}
-			jsonBody , _ := json.Marshal(&llmRequest)
-			req , err := http.NewRequest("POST" , llmEndPoint , bytes.NewBuffer(jsonBody) )
+
+			jsonBody, err := json.Marshal(&llmRequest)
+			if err != nil {
+				log.Printf("JSON marshal failed: %v", err)
+				errMu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				errMu.Unlock()
+				return
+			}
+
+			req, err := http.NewRequest("POST", llmEndPoint, bytes.NewBuffer(jsonBody))
+			if err != nil {
+				log.Printf("failed to create request: %v", err)
+				errMu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				errMu.Unlock()
+				return
+			}
+
 			resp, err := client.Do(req)
 			if err != nil {
 				log.Printf("llm service request failed: %v", err)
-				return err
+				errMu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				errMu.Unlock()
+				return
 			}
 			defer resp.Body.Close()
+
 			var llmresponse dto.LlmResponse
-			_ = json.NewDecoder(resp.Body).Decode(&llmresponse)
+			if err := json.NewDecoder(resp.Body).Decode(&llmresponse); err != nil {
+				log.Printf("decode error: %v", err)
+				errMu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				errMu.Unlock()
+				return
+			}
+
+			// append result safely
 			mu.Lock()
 			questionList = append(questionList, llmresponse)
 			mu.Unlock()
-			return nil
-		}()
+
+		}(val)
 	}
+
 	wg.Wait()
-		
+
+	// If ANY goroutine returned an error → return HTTP error
+	if firstErr != nil {
+		log.Printf("processing failed: %v", firstErr)
+		http.Error(w, "failed to generate questions", http.StatusInternalServerError)
+		return
+	}
+
 	cloudinaryURL, err := service.UploadPDF(pdfBytes, header.Filename)
 	if err != nil {
 		http.Error(w, "failed uploading PDF to Cloudinary: "+err.Error(), http.StatusInternalServerError)
@@ -159,7 +210,7 @@ func UploadMaterial(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"message":       "Material uploaded successfully",
 		"content_id":    res.InsertedID,
-		"Questions" : 	questionList,
+		"questions" : 	questionList,
 		"cloudinaryUrl": cloudinaryURL,
 	}
 

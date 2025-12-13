@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"management/src/db"
 	"management/src/routes"
 	"net/http"
 
@@ -15,7 +16,8 @@ func main() {
 		log.Fatal("⚠️ Error loading .env file:", err);
 	}
 
-	
+	db.PSQLInit()
+	db.MongoDBInit()
 
 	router := chi.NewRouter();
 
