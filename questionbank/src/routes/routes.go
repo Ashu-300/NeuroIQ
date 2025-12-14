@@ -13,6 +13,7 @@ func SetupQuestionbankRoutes() chi.Router{
 	router.Group(func(r chi.Router){
 		r.Use(middleware.AuthMiddleware)
 		r.Post("/register/questionset" , controller.RegisterQuestionSet)
+		r.Post("/generate/question/singleunit" , controller.GenrateQuestionFromText)
 	})
 
 	return router
