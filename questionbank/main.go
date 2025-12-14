@@ -22,7 +22,7 @@ func main() {
 
 	router.Mount("/api/questionbank", routes.SetupQuestionbankRoutes())
 
-	log.Printf("🚀 question-bank serivce listening on server 8081")
+	log.Printf("🚀 question-bank serivce listening on server 8085")
 	err = http.ListenAndServe(":8085", router)
 	if err != nil {
 		log.Fatal("❌ Server failed to start:", err)
