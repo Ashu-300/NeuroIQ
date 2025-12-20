@@ -94,7 +94,6 @@ func UploadMaterial(w http.ResponseWriter, r *http.Request) {
 	chunks := utils.SplitByUnits(cleanText)
 	unitsContent = chunks
 	client := &http.Client{
-		Timeout: 10 * time.Second,
 	}
 	llmBaseURI := os.Getenv("LLM_URI")
 	llmEndPoint := llmBaseURI + "/generate-questions"
@@ -105,7 +104,7 @@ func UploadMaterial(w http.ResponseWriter, r *http.Request) {
 	
 	var firstErr error
 	var errMu sync.Mutex
-
+	log.Print(chunks[0])
 	for _, val := range chunks {
 		wg.Add(1)
 
@@ -142,7 +141,7 @@ func UploadMaterial(w http.ResponseWriter, r *http.Request) {
 				errMu.Unlock()
 				return
 			}
-
+			req.Header.Set("Content-Type", "application/json")
 			resp, err := client.Do(req)
 			if err != nil {
 				log.Printf("llm service request failed: %v", err)
@@ -196,7 +195,7 @@ func UploadMaterial(w http.ResponseWriter, r *http.Request) {
 	// If ANY goroutine returned an error → return HTTP error
 	if firstErr != nil {
 		log.Printf("processing failed: %v", firstErr)
-		http.Error(w, "failed to generate questions", http.StatusInternalServerError)
+		http.Error(w, "failed to generate questions:"+firstErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
