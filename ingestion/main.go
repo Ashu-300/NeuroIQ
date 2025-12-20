@@ -3,7 +3,7 @@ package main
 import (
 	"ingestion/src/config"
 	"ingestion/src/db"
-	"ingestion/src/kafka"
+	// "ingestion/src/kafka"
 	"ingestion/src/routes"
 	"log"
 	"net/http"
@@ -22,7 +22,7 @@ func main() {
 	db.InitDB()
 	config.InitCloudinary()
 	config.UniPdfInit()
-	kafka.KafkaInit()
+	// kafka.KafkaInit()
 	
 	
 	router := chi.NewRouter();

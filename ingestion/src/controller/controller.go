@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"ingestion/src/db"
 	"ingestion/src/dto"
 	"ingestion/src/kafka"
@@ -16,8 +17,8 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -153,6 +154,23 @@ func UploadMaterial(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			defer resp.Body.Close()
+
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				bodyBytes, _ := io.ReadAll(resp.Body)
+
+				err = fmt.Errorf(
+					"llm service error | status=%d | response=%s",
+					resp.StatusCode,
+					string(bodyBytes),
+				)
+
+				errMu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				errMu.Unlock()
+				return
+			}
 
 			var llmresponse dto.LlmResponse
 			if err := json.NewDecoder(resp.Body).Decode(&llmresponse); err != nil {
