@@ -8,7 +8,9 @@ type Questions struct {
 	Questions	[]Question				`json:"questions" bson:"user_id validate:"required""`
 }
 
-type Question struct{
-	Success		bool 	`json:"sucsess" bson:"success" validate:"required"`
-	Content		string	`json:"content" bson:"content validate:"required""`
+
+
+type Question struct {
+    Marks    int    `json:"marks" bson:"marks" validate:"required"`
+    Question string `json:"question" bson:"question validate:"required""`
 }

@@ -3,13 +3,15 @@ package controller
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"os"
 	"questionbank/src/db"
 	"questionbank/src/dto"
 	"questionbank/src/middleware"
 	"questionbank/src/models"
-	"time"
 
 	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -74,7 +76,6 @@ func GenrateQuestionFromText(w http.ResponseWriter , r *http.Request){
 
 	llmURI := os.Getenv("LLM_URI")
 	client := &http.Client{
-		Timeout: 10 * time.Second,
 	}
 	jsonLlmBody, err := json.Marshal(&llmRequestBody)
 	if err != nil {
@@ -83,25 +84,43 @@ func GenrateQuestionFromText(w http.ResponseWriter , r *http.Request){
 	}
 	llmEndPoint := llmURI + "/generate-questions"
 	llmrReq, err := http.NewRequest("POST", llmEndPoint, bytes.NewBuffer(jsonLlmBody))
+	llmrReq.Header.Set("Content-Type", "application/json")
 	llmResp, err := client.Do(llmrReq)
 	if err != nil {
 		http.Error(w, "error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	defer llmResp.Body.Close()
+	if llmResp.StatusCode < 200 || llmResp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(llmResp.Body)
+
+		log.Printf(
+			"LLM service error | status=%d | response=%s",
+			llmResp.StatusCode,
+			string(bodyBytes),
+		)
+
+		http.Error(
+			w,
+			fmt.Sprintf("LLM service failed with status %d", llmResp.StatusCode),
+			http.StatusBadGateway, // upstream error
+		)
+		return
+	}
 
 	var llmresponse dto.LlmResponse
 	if err := json.NewDecoder(llmResp.Body).Decode(&llmresponse); err != nil {
-		http.Error(w , "Decode error : "+err.Error() , http.StatusInternalServerError)
+		http.Error(w , "LLM Decode error : "+err.Error() , http.StatusInternalServerError)
 		return
 	}
 
 	apiResp := map[string]interface{}{
-		"message":       "Material uploaded successfully",
-		"success":		llmresponse.Sucess,
-		"questions":	llmresponse.Questions,
+		"success":   llmresponse.Success,
+		"message":   "Questions generated successfully",
+		"questions": llmresponse.Questions,
 	}
 	
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(apiResp)
 }

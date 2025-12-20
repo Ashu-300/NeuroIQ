@@ -1,94 +1,79 @@
 const {generateLLMResponse} = require('../service/service')
 
+function extractJSON(text) {
+  // Find first JSON array in the text
+  const match = text.match(/\[[\s\S]*\]/);
+
+  if (!match) {
+    console.error("Raw LLM output:", text);
+    throw new Error("LLM did not return valid JSON array");
+  }
+
+  try {
+    return JSON.parse(match[0]);
+  } catch (err) {
+    console.error("JSON parse failed:", match[0]);
+    throw new Error("Failed to parse JSON from LLM response");
+  }
+}
+
+
 const generateQuestions = async (req, res) => {
   try {
     const {
       subject,
-      unitSyllabus,    // full syllabus text for that unit
-      num3Marks,       // number of 3-mark questions to generate
-      num4Marks,       // number of 4-mark questions to generate
-      num10Marks       // number of 10-mark questions to generate
+      unit_syllabus,
+      num_3marks,
+      num_4marks,
+      num_10marks
     } = req.body;
 
-    // Basic validation (optional, but helpful)
-    if (!subject || !unitSyllabus) {
+    if (!subject || !unit_syllabus) {
       return res.status(400).json({
         success: false,
-        message: "subject and unitSyllabus are required",
+        message: "subject and unit_syllabus are required",
       });
     }
 
-    // Build dynamic “Generate:” part
     const generateLines = [];
-    if (num3Marks && num3Marks > 0) {
-      generateLines.push(`- ${num3Marks} questions of 3 marks`);
-    }
-    if (num4Marks && num4Marks > 0) {
-      generateLines.push(`- ${num4Marks} questions of 4 marks`);
-    }
-    if (num10Marks && num10Marks > 0) {
-      generateLines.push(`- ${num10Marks} questions of 10 marks`);
-    }
-
-    // If nothing provided, default to something (optional)
-    if (generateLines.length === 0) {
-      generateLines.push(`- 3 questions of 3 marks`);
-      generateLines.push(`- 3 questions of 4 marks`);
-      generateLines.push(`- 3 questions of 10 marks`);
-    }
-
-    // Build dynamic “Format” part
-    let formatSection = "";
-
-    if (num3Marks && num3Marks > 0) {
-      formatSection += `\n3 Marks Questions:\n`;
-      for (let i = 1; i <= num3Marks; i++) {
-        formatSection += `${i}. ...\n`;
-      }
-    }
-
-    if (num4Marks && num4Marks > 0) {
-      formatSection += `\n4 Marks Questions:\n`;
-      for (let i = 1; i <= num4Marks; i++) {
-        formatSection += `${i}. ...\n`;
-      }
-    }
-
-    if (num10Marks && num10Marks > 0) {
-      formatSection += `\n10 Marks Questions:\n`;
-      for (let i = 1; i <= num10Marks; i++) {
-        formatSection += `${i}. ...\n`;
-      }
-    }
+    if (num_3marks > 0) generateLines.push(`- ${num_3marks} questions of 3 marks`);
+    if (num_4marks > 0) generateLines.push(`- ${num_4marks} questions of 4 marks`);
+    if (num_10marks > 0) generateLines.push(`- ${num_10marks} questions of 10 marks`);
 
     const prompt = `
-You are an expert exam question paper setter.
+You are an exam question generator.
 
-Generate exam questions strictly based on the following information.
+Generate questions strictly based on the syllabus below.
+DO NOT include answers, explanations, headings, or extra text.
 
 Subject: ${subject}
-Unit: ${unitName || "Single Unit"}
-Complete Unit Syllabus:
-${unitSyllabus}
+
+Unit Syllabus:
+${unit_syllabus}
 
 Generate:
 ${generateLines.join("\n")}
 
+Return ONLY valid JSON in the following format:
+[
+  { "marks": 3, "question": "question text" }
+]
+
 Rules:
-- Cover the full unit syllabus across the questions.
-- Use clear, exam-style language.
-- Avoid repeating the same concept in many questions unless it is core to the unit.
-- Mix definitions, explanations, comparisons, and scenario-based questions where suitable.
+- Output MUST be valid JSON
+- No markdown
+- No explanations
+- No text outside JSON
+`;
 
-Format your answer exactly like this:
-${formatSection}
-    `;
+    const llmResponse = await generateLLMResponse(prompt);
 
-    const result = await generateLLMResponse(prompt);
+    const questionsArray = extractJSON(llmResponse);
+    // const questionsArray = JSON.parse(llmResponse)
 
     res.status(200).json({
       success: true,
-      questions: result,
+      questions: questionsArray,
     });
 
   } catch (error) {
