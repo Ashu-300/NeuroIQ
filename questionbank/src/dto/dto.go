@@ -28,5 +28,5 @@ type LlmRequestBody struct {
 
 type LlmResponse struct {
 	Success 		bool				`json:"success"`
-	Questions	[]models.Question	`json:"questions"`
+	Questions	[]models.Question		`json:"questions"`
 }

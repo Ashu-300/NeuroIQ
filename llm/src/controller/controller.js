@@ -36,9 +36,14 @@ const generateQuestions = async (req, res) => {
     }
 
     const generateLines = [];
-    if (num_3marks > 0) generateLines.push(`- ${num_3marks} questions of 3 marks`);
-    if (num_4marks > 0) generateLines.push(`- ${num_4marks} questions of 4 marks`);
-    if (num_10marks > 0) generateLines.push(`- ${num_10marks} questions of 10 marks`);
+    const threeMarks = num_3marks ?? 2;
+    const fourMarks = num_4marks ?? 2;
+    const tenMarks = num_10marks ?? 1;
+
+    generateLines.push(`- ${threeMarks} questions of 3 marks`);
+    generateLines.push(`- ${fourMarks} questions of 4 marks`);
+    generateLines.push(`- ${tenMarks} questions of 10 marks`);
+
 
     const prompt = `
 You are an exam question generator.
@@ -68,8 +73,11 @@ Rules:
 
     const llmResponse = await generateLLMResponse(prompt);
 
-    const questionsArray = extractJSON(llmResponse);
-    // const questionsArray = JSON.parse(llmResponse)
+    const rawText =
+    typeof llmResponse === "string"
+      ? llmResponse
+      : llmResponse?.content ?? "";
+    const questionsArray = extractJSON(rawText);
 
     res.status(200).json({
       success: true,

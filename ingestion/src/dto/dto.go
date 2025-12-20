@@ -33,10 +33,16 @@ type LlmRequestBody struct {
 	UnitSyllabus    	string			`json:"unit_syllabus"`
 	Num3Marks      		int				`json:"num_3marks"`
 	Num4Marks     		int				`json:"num_4marks"`
-	Num10Marks  		int				`json:"num_5marks"`
+	Num10Marks  		int				`json:"num_10marks"`
 }
 
+type Question struct {
+    Marks    int    	`json:"marks" bson:"marks" `
+    Question string 	`json:"question" bson:"question "`
+}
+
+
 type LlmResponse struct {
-	Sucess 		bool	`json:"success"`
-	Questions	string	`json:"questions"`
+	Success 		bool				`json:"success"`
+	Questions		[]Question			`json:"questions"`
 }

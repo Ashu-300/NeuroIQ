@@ -12,5 +12,5 @@ type Questions struct {
 
 type Question struct {
     Marks    int    `json:"marks" bson:"marks" validate:"required"`
-    Question string `json:"question" bson:"question validate:"required""`
+    Question string `json:"question" bson:"question" validate:"required"`
 }
