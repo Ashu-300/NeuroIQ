@@ -15,7 +15,7 @@ type Claim struct {
 
 
 type Questions struct {
-	QuestionList	[]models.Question		`json:"questions" bson:"questions validate:"required""`
+	QuestionList	[]models.Question		`json:"questions" bson:"questions" validate:"required"`
 }
 
 type LlmRequestBody struct {
