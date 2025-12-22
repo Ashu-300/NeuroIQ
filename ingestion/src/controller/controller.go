@@ -398,6 +398,7 @@ func UploadMaterialByID(w http.ResponseWriter , r *http.Request){
 	jsonResp := map[string]interface{}{
 		"message":"material uploaded to ai for question generation",
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(jsonResp)
 }

@@ -20,6 +20,7 @@ type Questions struct {
 
 type LlmRequestBody struct {
 	Subject				string			`json:"subject" validate:"required"`
+	Semester			string			`json:"semester" validation:"required"`
 	UnitSyllabus    	string			`json:"unit_syllabus" validate:"required"`
 	Num3Marks      		int				`json:"num_3marks"`
 	Num4Marks     		int				`json:"num_4marks"`
