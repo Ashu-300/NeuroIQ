@@ -5,6 +5,8 @@ import "go.mongodb.org/mongo-driver/bson/primitive"
 type Questions struct {
 	ID 			primitive.ObjectID		`json:"_id" bson:"_id validate:"required""`
 	UserID		primitive.ObjectID		`json:"user_id" bson:"user_id validate:"required""`
+	Subject		string					`json:"subject" bson:"subject validate:"required""`
+	Semester	string					`json:"semester" bson:"semester validation:"required""`
 	Questions	[]Question				`json:"questions" bson:"user_id validate:"required""`
 }
 
