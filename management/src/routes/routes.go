@@ -13,6 +13,7 @@ func SetupManagementRoutes() chi.Router{
 	router.Post("/register/room" , controller.RegisterRoom)
 	router.Post("/register/multiple-room" , controller.RegisterMultipleRoom)
 	router.Get("/get/rooms" , controller.GetRooms)
+	router.Post("/mark/attendance" , controller.MarkAttendance)
 
 
 	router.Group(func(r chi.Router){
