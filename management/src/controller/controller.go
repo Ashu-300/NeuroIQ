@@ -16,17 +16,140 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
+
+
+var validate = validator.New()
+
+// ------------------------------------
+// Register single room
+// ------------------------------------
 func RegisterRoom(w http.ResponseWriter, r *http.Request) {
-	//postgres
+	var room models.Room
+
+	if err := json.NewDecoder(r.Body).Decode(&room); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := validate.Struct(room); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err := repository.CreateRoom(r.Context(), room)
+	if err != nil {
+		log.Println("CreateRoom error:", err)
+		http.Error(w, "Failed to register room", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "Room registered successfully",
+	})
 }
 
+// ------------------------------------
+// Register multiple rooms
+// ------------------------------------
 func RegisterMultipleRoom(w http.ResponseWriter, r *http.Request) {
-	//postgres
+	var rooms []models.Room
+
+	if err := json.NewDecoder(r.Body).Decode(&rooms); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	tx, err := db.DB.Begin(r.Context())
+	if err != nil {
+		http.Error(w, "Transaction start failed", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	for _, room := range rooms {
+		if err := validate.Struct(room); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		query := `
+			INSERT INTO rooms (room_id, rows, columns, branch)
+			VALUES ($1, $2, $3, $4)
+		`
+
+		_, err := tx.Exec(
+			r.Context(),
+			query,
+			room.RoomID,
+			room.Rows,
+			room.Columns,
+			room.Branch,
+		)
+
+		if err != nil {
+			log.Println("Bulk room insert error:", err)
+			http.Error(w, "Failed to register rooms", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if err := tx.Commit(r.Context()); err != nil {
+		http.Error(w, "Transaction commit failed", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "Rooms registered successfully",
+	})
 }
 
+// ------------------------------------
+// Get all rooms
+// ------------------------------------
 func GetRooms(w http.ResponseWriter, r *http.Request) {
-	//postgres
+	rooms, err := repository.GetAllRooms(r.Context())
+	if err != nil {
+		log.Println("GetAllRooms error:", err)
+		http.Error(w, "Failed to fetch rooms", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(rooms)
 }
+
+// ------------------------------------
+// Mark attendance
+// ------------------------------------
+func MarkAttendance(w http.ResponseWriter, r *http.Request) {
+	var attendance models.Attendance
+
+	if err := json.NewDecoder(r.Body).Decode(&attendance); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := validate.Struct(attendance); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err := repository.MarkAttendance(r.Context(), attendance)
+	if err != nil {
+		log.Println("MarkAttendance error:", err)
+		http.Error(w, "Failed to mark attendance", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "Attendance marked successfully",
+	})
+}
+
+
 
 func GenerateSeatingArrangement(w http.ResponseWriter, r *http.Request) {
 	
