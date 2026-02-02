@@ -13,7 +13,7 @@ type AuthContext struct {
 	UserID string
 	Email  string
 	Role   string
-	Claims *dto.Claim
+	Claims *dto.AccessClaim
 }
 type contextKey string
 

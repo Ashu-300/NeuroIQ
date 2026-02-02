@@ -19,7 +19,7 @@ async function generateLLMResponse(prompt) {
           num_predict: 500, // equivalent to maxOutputTokens
         },
       }),
-    });
+    }); 
 
     if (!response.ok) {
       throw new Error(`Ollama error: ${response.status}`);
@@ -33,5 +33,6 @@ async function generateLLMResponse(prompt) {
     throw new Error("Failed to generate response");
   }
 }
-
+ 
 module.exports = { generateLLMResponse };
+ 

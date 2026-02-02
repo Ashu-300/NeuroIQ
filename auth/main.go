@@ -5,6 +5,7 @@ import (
 	"auth/src/routes"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
@@ -22,8 +23,12 @@ func main() {
 
 	router.Mount("/api/auth" , routes.SetuAuthRoutes());
 
-	log.Printf("🚀 Auth serivce listening on server 8081");
-	err = http.ListenAndServe(":8081", router);
+	port := os.Getenv("PORT");
+	if port == "" {
+		port = "8001"
+	}
+	log.Printf("🚀 Auth serivce listening on server %s", port);
+	err = http.ListenAndServe(":"+port, router);
 	if err != nil {
 		log.Fatal("❌ Server failed to start:", err)
 	}

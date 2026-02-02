@@ -1,24 +1,37 @@
 const {generateLLMResponse} = require('../service/service')
 
 function extractJSON(text) {
-  // Find first JSON array in the text
-  const match = text.match(/\[[\s\S]*\]/);
-
-  if (!match) {
-    console.error("Raw LLM output:", text);
-    throw new Error("LLM did not return valid JSON array");
-  }
-
   try {
-    return JSON.parse(match[0]);
+    const start = text.indexOf("[");
+    const end = text.lastIndexOf("]");
+
+    if (start === -1 || end === -1 || end <= start) {
+      console.error("Raw LLM output:", text);
+      throw new Error("No JSON array found");
+    }
+
+    const jsonText = text.slice(start, end + 1);
+    return JSON.parse(jsonText);
+
   } catch (err) {
-    console.error("JSON parse failed:", match[0]);
+    console.error("JSON parse failed. Raw output:", text);
     throw new Error("Failed to parse JSON from LLM response");
   }
 }
 
+function validateTheoryQuestions(arr) {
+  if (!Array.isArray(arr)) return false;
 
-const generateQuestions = async (req, res) => {
+  return arr.every(q =>
+    typeof q === "object" &&
+    typeof q.question === "string" &&
+    typeof q.marks === "number"
+  );
+}
+
+
+
+const generateTheoryQuestions = async (req, res) => {
   try {
     const {
       subject,
@@ -35,15 +48,9 @@ const generateQuestions = async (req, res) => {
       });
     }
 
-    const generateLines = [];
     const threeMarks = num_3marks ?? 2;
     const fourMarks = num_4marks ?? 2;
     const tenMarks = num_10marks ?? 1;
-
-    generateLines.push(`- ${threeMarks} questions of 3 marks`);
-    generateLines.push(`- ${fourMarks} questions of 4 marks`);
-    generateLines.push(`- ${tenMarks} questions of 10 marks`);
-
 
     const prompt = `
 You are an exam question generator.
@@ -56,8 +63,12 @@ Subject: ${subject}
 Unit Syllabus:
 ${unit_syllabus}
 
-Generate:
-${generateLines.join("\n")}
+Generate exactly ${threeMarks + fourMarks + tenMarks} questions.
+
+Rules for marks:
+- First ${threeMarks} questions must have marks = 3
+- Next ${fourMarks} questions must have marks = 4
+- Last ${tenMarks} questions must have marks = 10
 
 Return ONLY valid JSON in the following format:
 [
@@ -74,24 +85,33 @@ Rules:
     const llmResponse = await generateLLMResponse(prompt);
 
     const rawText =
-    typeof llmResponse === "string"
-      ? llmResponse
-      : llmResponse?.content ?? "";
+      typeof llmResponse === "string"
+        ? llmResponse
+        : llmResponse?.content ?? "";
+
+    // ✅ 1. Extract JSON FIRST
     const questionsArray = extractJSON(rawText);
 
+    // ✅ 2. Validate AFTER extraction
+    if (!validateTheoryQuestions(questionsArray)) {
+      throw new Error("Invalid theory question structure from LLM");
+    }
+
+    // ✅ 3. Respond
     res.status(200).json({
       success: true,
       questions: questionsArray,
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("Theory Generation Error:", error);
     res.status(500).json({
       success: false,
       message: error.message || "Something went wrong",
     });
   }
 };
+
 
 
 const generateSeatingArrangement = async (req, res) => {
@@ -240,4 +260,78 @@ Now compute the seating plan and output ONLY the final JSON array of SeatingArra
   }
 };
 
-module.exports = {generateQuestions , generateSeatingArrangement}
+const generateMCQQuestions = async (req, res) => {
+  try {
+    const {
+      subject,
+      semester,
+      unit_syllabus,
+      num_mcqs
+    } = req.body;
+
+    if (!subject || !unit_syllabus) {
+      return res.status(400).json({
+        success: false,
+        message: "subject and unit_syllabus are required",
+      });
+    }
+
+    const totalMCQs = num_mcqs ?? 5;
+
+    const prompt = `
+You are an exam question generator.
+
+Generate Multiple Choice Questions (MCQs) strictly based on the syllabus below.
+DO NOT include explanations, headings, or extra text.
+
+Subject: ${subject}
+${semester ? `Semester: ${semester}` : ""}
+
+Unit Syllabus:
+${unit_syllabus}
+
+Generate exactly ${totalMCQs} MCQ questions.
+
+Return ONLY valid JSON in the following format:
+[
+  {
+    "question": "question text",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correct_option": "Option A"
+  }
+]
+
+Rules:
+- Output MUST be valid JSON
+- Each question must have exactly 4 options
+- correct_option MUST exactly match one option
+- No markdown
+- No explanations
+- No text outside JSON
+`;
+
+    const llmResponse = await generateLLMResponse(prompt);
+
+    const rawText =
+      typeof llmResponse === "string"
+        ? llmResponse
+        : llmResponse?.content ?? "";
+
+    const questionsArray = extractJSON(rawText);
+
+    res.status(200).json({
+      success: true,
+      questions: questionsArray,
+    });
+
+  } catch (error) {
+    console.error("MCQ Generation Error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Something went wrong",
+    });
+  }
+};
+
+
+module.exports = {generateTheoryQuestions , generateMCQQuestions , generateSeatingArrangement}
