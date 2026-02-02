@@ -14,7 +14,7 @@ func SetuAuthRoutes() chi.Router {
 	router.Post("/login" , controller.Login)
 	router.Post("/register/student" , controller.RegisterStudent)
 	router.Get("/get/studentlist" , controller.GetStudentsByPrefixBranchSemester)
-
+	router.Post("/token/refresh" , controller.RefreshToken)
 	router.Group(func (protected chi.Router){
 		protected.Use(middleware.AuthMiddleware)
 		protected.Get("/get/user" , controller.GetUser)

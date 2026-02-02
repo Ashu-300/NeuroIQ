@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"ingestion/src/db"
 	"ingestion/src/dto"
-	"ingestion/src/kafka"
 	"ingestion/src/middleware"
 	"ingestion/src/model"
 	"ingestion/src/service"
@@ -21,7 +20,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -333,72 +331,3 @@ func GetMaterialByUserID(w http.ResponseWriter, r *http.Request){
 }
 
 
-func UploadMaterialByID(w http.ResponseWriter , r *http.Request){
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Extract ID from URL
-	idParam := chi.URLParam(r, "id")
-	if idParam == "" {
-		http.Error(w, "id is required", http.StatusBadRequest)
-		return
-	}
-
-	authCtx , ok := r.Context().Value(middleware.AuthKey).(middleware.AuthContext)
-	if !ok {
-		log.Print("auth ctx not found")
-		http.Error(w , "auth ctx not found" , http.StatusBadRequest)
-		return
-	}
-
-	// Convert to ObjectID
-	objID, err := primitive.ObjectIDFromHex(idParam)
-	if err != nil {
-		http.Error(w, "invalid id format", http.StatusBadRequest)
-		return
-	}
-
-	// Create filter
-	filter := bson.M{"_id": objID}
-
-	// Query MongoDB
-	var result model.Content
-	err = db.GetIngestionCollection().FindOne(ctx, filter).Decode(&result)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			http.Error(w, "material not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "database error: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	producer := kafka.GetKafkaProducer()
-	chunks := result.Content
-	go func(chunks []dto.UnitChunk , producer *kafka.Producer) {
-		for _, val := range chunks {
-			chunkStruct := dto.TextChunkEvent{
-				ChunkID:    uuid.New().String(),
-				Unit:       val.Unit,
-				Content:    val.Content,
-				Subject:    result.Subject,
-				TeacherID:  authCtx.UserID,
-				UploadedBy: authCtx.Role,
-				CreatedAt:  time.Now(),
-			}
-		
-
-			if err := producer.SendJSON("syllabus", "unit", chunkStruct); err != nil {
-				log.Println("failed to send message:", err)
-			} else {
-				log.Println("✔ Message sent!")
-			}
-		}
-	}(chunks, producer)
-	
-	jsonResp := map[string]interface{}{
-		"message":"material uploaded to ai for question generation",
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(jsonResp)
-}

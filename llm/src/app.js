@@ -9,7 +9,7 @@ const app = express();
 
 app.use(express.json());
 app.use(morgan('dev'));
-app.use("/api/llm-service", router);
+app.use("/api/llm", router);
 
 
 

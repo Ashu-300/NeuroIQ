@@ -5,6 +5,7 @@ import (
 	"management/src/db"
 	"management/src/routes"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi"
 	"github.com/joho/godotenv"
@@ -23,8 +24,13 @@ func main() {
 
 	router.Mount("/api/management" , routes.SetupManagementRoutes())
 
-	log.Printf("🚀 exam-management serivce listening on server 8081");
-	err = http.ListenAndServe(":8084", router);
+	port := os.Getenv("PORT");
+	if port == "" {
+		port = "8004"
+	}
+
+	log.Printf("🚀 exam-management serivce listening on server %s", port);
+	err = http.ListenAndServe(":"+port, router);
 	if err != nil {
 		log.Fatal("❌ Server failed to start:", err)
 	}

@@ -6,11 +6,20 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type Claim struct {
+type AccessClaim struct {
 	ID            string
 	Email         string 
 	Role          string 
 	jwt.RegisteredClaims
+}
+
+type RefreshClaim struct {
+	ID            string
+	jwt.RegisteredClaims
+}
+
+type RefreshTokenRequestDTO struct {
+	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
 type UserRegisterDTO struct {

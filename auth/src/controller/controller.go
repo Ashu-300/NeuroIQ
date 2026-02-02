@@ -7,10 +7,13 @@ import (
 	"auth/src/models"
 	"auth/src/repository"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -186,7 +189,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT token
-	token, err := jwtutil.GenerateToken(user.ID, user.Email, user.Role)
+	accessToken, refreshToken, err := jwtutil.GenerateToken(user.ID, user.Email, user.Role)
 	if err != nil {
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return
@@ -197,7 +200,8 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "User logged in successfully",
-		"token":   token,
+		"accessToken":   accessToken,
+		"refreshToken": refreshToken,
 		"User": dto.LoginResponseDTO{
 			Name: user.Name,
 			Role: user.Role,
@@ -205,6 +209,55 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func RefreshToken(w http.ResponseWriter, r *http.Request) {
+	var refreshToken dto.RefreshTokenRequestDTO
+	// Decode request body
+	if err := json.NewDecoder(r.Body).Decode(&refreshToken); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	var claim dto.RefreshClaim
+	refreshSecret := os.Getenv("JWT_REFRESH_SECRET")
+	if refreshSecret == "" {
+		http.Error(w, "JWT refresh secret not set", http.StatusInternalServerError)
+		return
+	}
+	// Parse the token into our custom claim struct
+	token, err := jwt.ParseWithClaims(
+		refreshToken.RefreshToken,
+		&claim,
+		func(t *jwt.Token) (interface{}, error) {
+			// Check if signing method is HS256
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("invalid signing method")
+			}
+			return []byte(refreshSecret), nil
+		},
+	)
+	if err != nil || !token.Valid {
+		http.Error(w, "Invalid or expired refresh token", http.StatusUnauthorized)
+		return
+	}
+	user , err := repository.GetUserByID(claim.ID)
+	if err != nil || user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+	// Generate new access token
+	newAccessToken, newRefreshToken, err := jwtutil.GenerateToken(claim.ID, user.Email, user.Role)
+	if err != nil {
+		http.Error(w, "Failed to generate new token", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "User token refreshed  successfully",
+		"accessToken":  newAccessToken,
+		"refreshToken": newRefreshToken,
+	})
+}
 
 func GetUser(w http.ResponseWriter, r *http.Request) {
 	// Retrieve auth context (from middleware)

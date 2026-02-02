@@ -1,0 +1,25 @@
+# --- Core API ---
+fastapi==0.128.0
+uvicorn==0.40.0
+
+# --- Validation & Env ---
+pydantic==2.12.5
+python-dotenv==1.2.1
+
+# --- Database ---
+pymongo==4.16.0
+motor==3.7.1
+
+# --- Security ---
+PyJWT==2.11.0
+cryptography==46.0.4
+
+# --- Computer Vision (CRITICAL PINS) ---
+numpy==1.26.4
+opencv-python==4.9.0.80
+mediapipe==0.10.9
+
+# --- File & HTTP ---
+python-multipart==0.0.22
+aiofiles==25.1.0
+httpx==0.28.1

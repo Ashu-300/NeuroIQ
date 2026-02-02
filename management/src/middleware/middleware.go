@@ -44,7 +44,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if claims.Role != "teacher" || claims.Role != "admin" {
+		if claims.Role != "teacher" && claims.Role != "admin" {
 			http.Error(w , "Not Authorized for the service" , http.StatusUnauthorized)
 			return
 		}
