@@ -57,3 +57,17 @@ type Student struct {
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+
+type ScheduleExam struct {
+	Title       	string    	`bson:"title" json:"title"`
+	Subject     	string    	`bson:"subject" json:"subject"`
+	Semester    	string    	`bson:"semester" json:"semester"`
+	Date        	time.Time 	`bson:"date" json:"date"`
+	StartTime   	string    	`bson:"start_time" json:"start_time"`
+	EndTime     	string    	`bson:"end_time" json:"end_time"`
+	DurationMin 	int       	`bson:"duration_min" json:"duration_min"`
+	TotalMarks  	int       	`bson:"total_marks" json:"total_marks"`
+	CreatedBy   	string    	`bson:"created_by" json:"created_by"`
+	CreatedAt   	time.Time 	`bson:"created_at" json:"created_at"`
+}

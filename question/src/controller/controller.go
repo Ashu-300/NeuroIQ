@@ -106,7 +106,7 @@ func RegisterMCQQuestionSet(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(apiResp)
 }
 
-func GenerateMCQExam(w http.ResponseWriter, r *http.Request) {
+func RegisterMCQExam(w http.ResponseWriter, r *http.Request) {
 	var examRequest dto.MCQExam
 
 	err := json.NewDecoder(r.Body).Decode(&examRequest)
@@ -140,7 +140,7 @@ func GenerateMCQExam(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(apiResp)
 }
 
-func GenerateTheoryExam(w http.ResponseWriter, r *http.Request) {
+func RegisterTheoryExam(w http.ResponseWriter, r *http.Request) {
 	var examRequest dto.TheoryExam
 
 	err := json.NewDecoder(r.Body).Decode(&examRequest)
@@ -174,13 +174,13 @@ func GenerateTheoryExam(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(apiResp)
 }
 
-func GenerateTheoryAndMCQExam(w http.ResponseWriter, r *http.Request) {
+func RegisterTheoryAndMCQExam(w http.ResponseWriter, r *http.Request) {
 	authCtx, ok := r.Context().Value(middleware.AuthKey).(middleware.AuthContext)
 	if !ok {
 		http.Error(w, "Error in auth context", http.StatusUnauthorized)
 		return
 	}
-	var examRequest dto.BothQuestions
+	var examRequest dto.BothQuestionsExam
 	err := json.NewDecoder(r.Body).Decode(&examRequest)
 	if err != nil {
 		http.Error(w, "Decoding error: "+err.Error(), http.StatusBadRequest)
@@ -192,7 +192,7 @@ func GenerateTheoryAndMCQExam(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Validation error: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	mongoRes, err := db.GetExamCollection().InsertOne(r.Context(), models.BothQuestions{
+	mongoRes, err := db.GetExamCollection().InsertOne(r.Context(), models.BothQuestionsExam{
 		UserID: 		authCtx.UserID,
 		Subject:        examRequest.Subject,
 		Semester:       examRequest.Semester,
@@ -233,7 +233,7 @@ func GetExam(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cursor.Close(ctx)
 
-	var exams []models.BothQuestions
+	var exams []models.BothQuestionsExam
 	if err := cursor.All(ctx , &exams); err != nil {
 		http.Error(w, "Cursor error: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -303,3 +303,4 @@ func GetQuestion(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(apiResp)
 }
+
