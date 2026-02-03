@@ -28,7 +28,7 @@ type MCQQuestions struct {
 	QuestionList		[]models.MCQQuestion	`json:"mcq_questions"  validate:"required"`
 }
 
-type BothQuestions struct {
+type BothQuestionsExam struct {
 	Subject				string						`json:"subject" validate:"required"`
 	Semester			string						`json:"semester" validate:"required"`
 	QuestionListTheory	[]models.TheoryQuestion		`json:"theory_questions"  validate:"required"`
@@ -78,6 +78,7 @@ type Category string
 const (
 	CategoryMCQ    Category = "MCQ"
 	CategoryTheory Category = "THEORY"
+	CategoryBoth   Category = "BOTH"
 )
 
 type QuestionRequest struct {
@@ -85,3 +86,5 @@ type QuestionRequest struct {
 	Semester			string					`json:"semester" validate:"required"`
 	Category			Category				`json:"category" validate:"required"`
 }
+
+

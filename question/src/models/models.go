@@ -1,5 +1,6 @@
 package models
 
+
 type TheoryQuestions struct {
 	UserID    string           `json:"user_id" bson:"user_id" validate:"required"`
 	Subject   string           `json:"subject" bson:"subject" validate:"required"`
@@ -21,11 +22,11 @@ type MCQQuestions struct {
 	Questions []MCQQuestion `json:"mcq_questions" bson:"mcq_questions" validate:"required"`
 }
 
-type BothQuestions struct {
-	UserID         string           `json:"user_id" bson:"user_id" validate:"required"`
-	Subject        string           `json:"subject" bson:"subject" validate:"required"`
-	Semester       string           `json:"semester" bson:"semester" validate:"required"`
-	Category       Category         `json:"category" bson:"category" validate:"required"`
+type BothQuestionsExam struct {
+	UserID          string           `json:"user_id" bson:"user_id" validate:"required"`
+	Subject         string           `json:"subject" bson:"subject" validate:"required"`
+	Semester        string           `json:"semester" bson:"semester" validate:"required"`
+	Category        Category         `json:"category" bson:"category" validate:"required"`
 	TheoryQuestions []TheoryQuestion `json:"theory_questions" bson:"theory_questions" validate:"required"`
 	MCQQuestions    []MCQQuestion    `json:"mcq_questions" bson:"mcq_questions" validate:"required"`
 }
@@ -47,13 +48,14 @@ const (
 type MCQExam struct {
 	Subject      string        `json:"subject" bson:"subject" validate:"required"`
 	Semester     string        `json:"semester" bson:"semester" validate:"required"`
-	Category     Category      `json"category" bson:"category" validate"required"`
+	Category     Category      `json:"category" bson:"category" validate:"required"`
 	QuestionList []MCQQuestion `json:"mcq_questions" bson:"mcq_questions" validate:"required"`
 }
 
 type TheoryExam struct {
 	Subject      string           `json:"subject" bson:"subject" validate:"required"`
 	Semester     string           `json:"semester" bson:"semester" validate:"required"`
-	Category     Category         `json"category" bson:"category" validate"required"`
+	Category     Category         `json"category" bson:"category" validate:"required"`
 	QuestionList []TheoryQuestion `json:"mcq_questions" bson:"mcq_questions" validate:"required"`
 }
+

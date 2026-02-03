@@ -19,6 +19,12 @@ func SetupManagementRoutes() chi.Router{
 	router.Group(func(r chi.Router){
 		r.Use(middleware.AuthMiddleware)
 		r.Post("/generate-seating-arrangement" , controller.GenerateSeatingArrangement)
+		// schedule exam
+		r.Post("/schedule/exam" , controller.ScheduleExam)
+		r.Get("/get/scheduled-exams" , controller.GetScheduledExams)
+		r.Get("/get/exam-details/{examID}" , controller.GetExamDetails)
+		r.Delete("/delete/scheduled-exam/{examID}" , controller.DeleteScheduledExam)
+		r.Put("/update/exam-time/{examID}", controller.UpdateExamTime)
 	})
 
 	return router

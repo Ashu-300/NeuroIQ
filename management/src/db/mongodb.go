@@ -27,5 +27,6 @@ func MongoDBInit() {
 	}
 	fmt.Println("✅ Connected to MongoDB!")
 
-	seatingCollection = client.Database("NeuroIQManagementDB").Collection("seating")
+	seatingCollection = client.Database("NeuroIQ_ManagementDB").Collection("seating")
+	examScheduleCollection = client.Database("NeuroIQ_ManagementDB").Collection("exam_schedule")
 }

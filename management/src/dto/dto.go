@@ -2,6 +2,7 @@ package dto
 
 import (
 	"management/src/models"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -22,4 +23,20 @@ type Prefix struct {
 type SeatingArrangementRequest struct {
 	Students	[]models.Student 		`json:"students"`
 	Rooms 		[]models.Room			`json:"rooms"`
+}
+
+type ScheduleExamRequest struct {
+	Title       string 		`json:"title" validate:"required"`
+	Subject     string 		`json:"subject" validate:"required"`
+	Semester    string 		`json:"semester" validate:"required"`
+	Date        time.Time 	`json:"date" validate:"required"` // YYYY-MM-DD
+	StartTime   string 		`json:"start_time" validate:"required"`
+	EndTime     string 		`json:"end_time" validate:"required"`
+	DurationMin int    		`json:"duration_min" validate:"required"`
+	TotalMarks  int    		`json:"total_marks" validate:"required"`
+}
+
+type UpdateExamTimeRequest struct {
+	StartTime string `json:"start_time" validate:"required"`
+	EndTime   string `json:"end_time" validate:"required"`
 }
