@@ -8,29 +8,40 @@ import (
 	"os"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/cors"
 	"github.com/joho/godotenv"
 )
 
 func main() {
-	err := godotenv.Load();
+	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("⚠️ Error loading .env file:", err);
+		log.Fatal("⚠️ Error loading .env file:", err)
 	}
 
 	db.PSQLInit()
 	db.MongoDBInit()
 
-	router := chi.NewRouter();
+	router := chi.NewRouter()
 
-	router.Mount("/api/management" , routes.SetupManagementRoutes())
+	// CORS middleware
+	router.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}))
 
-	port := os.Getenv("PORT");
+	router.Mount("/api/management", routes.SetupManagementRoutes())
+
+	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8004"
 	}
 
-	log.Printf("🚀 exam-management serivce listening on server %s", port);
-	err = http.ListenAndServe(":"+port, router);
+	log.Printf("🚀 exam-management serivce listening on server %s", port)
+	err = http.ListenAndServe(":"+port, router)
 	if err != nil {
 		log.Fatal("❌ Server failed to start:", err)
 	}

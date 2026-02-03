@@ -1,0 +1,4 @@
+export { default as AuthLayout } from './AuthLayout';
+export { default as AdminLayout } from './AdminLayout';
+export { default as TeacherLayout } from './TeacherLayout';
+export { default as StudentLayout } from './StudentLayout';

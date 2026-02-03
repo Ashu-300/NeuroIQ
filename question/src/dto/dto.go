@@ -17,13 +17,22 @@ type Claim struct {
 type TheoryQuestions struct {
 	Subject				string						`json:"subject" validate:"required"`
 	Semester			string						`json:"semester" validate:"required"`
+	// Category			models.Category				`json:"category" validate:"required"`
 	QuestionList		[]models.TheoryQuestion		`json:"theory_questions"  validate:"required"`
 }
 
 type MCQQuestions struct {
 	Subject				string					`json:"subject" validate:"required"`
 	Semester			string					`json:"semester" validate:"required"`
+	// Category			models.Category			`json:"category" validate:"required"`
 	QuestionList		[]models.MCQQuestion	`json:"mcq_questions"  validate:"required"`
+}
+
+type BothQuestions struct {
+	Subject				string						`json:"subject" validate:"required"`
+	Semester			string						`json:"semester" validate:"required"`
+	QuestionListTheory	[]models.TheoryQuestion		`json:"theory_questions"  validate:"required"`
+	QuestionListMCQ		[]models.MCQQuestion		`json:"mcq_questions"  validate:"required"`
 }
 
 type LlmTheoryRequestBody struct {

@@ -1,0 +1,8 @@
+export { default as Dashboard } from './Dashboard';
+export { default as UploadSyllabusPage } from './UploadSyllabusPage';
+export { default as GenerateFromTextPage } from './GenerateFromTextPage';
+export { default as GeneratedQuestionsPage } from './GeneratedQuestionsPage';
+export { default as GeneratedMCQPage } from './GeneratedMCQPage';
+export { default as QuestionBankPage } from './QuestionBankPage';
+export { default as CreateExamPage } from './CreateExamPage';
+export { default as ExamListPage } from './ExamListPage';
