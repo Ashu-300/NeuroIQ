@@ -8,6 +8,7 @@ import (
 	"questionbank/src/routes"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 	"github.com/joho/godotenv"
 )
 
@@ -20,6 +21,16 @@ func main() {
 	db.MongoInit()
 
 	router := chi.NewRouter()
+
+	// CORS middleware
+	router.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}))
 
 	router.Mount("/api/question", routes.SetupQuestionbankRoutes())
 

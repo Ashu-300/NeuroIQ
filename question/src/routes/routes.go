@@ -16,6 +16,8 @@ func SetupQuestionbankRoutes() chi.Router{
 		r.Post("/register/mcq" , controller.RegisterMCQQuestionSet)
 		r.Post("/exam/generate/theory" , controller.GenerateTheoryExam)
 		r.Post("/exam/generate/mcq" , controller.GenerateMCQExam)
+		r.Post("/exam/generate/both" , controller.GenerateTheoryAndMCQExam)
+		r.Get("/exam/subject/{subject}/semester/{semester}" , controller.GetExam)
 		r.Get("/get/question" , controller.GetQuestion)
 
 	})

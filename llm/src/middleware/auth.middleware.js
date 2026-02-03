@@ -1,5 +1,5 @@
 // src/middleware/auth.middleware.js
-const { validateToken } = require("../jwtutil/jwt.util");
+const { validateToken } = require("../util/jwt.util");
 
 function authMiddleware(req, res, next) {
     const authHeader = req.headers["authorization"];
@@ -30,7 +30,7 @@ function authMiddleware(req, res, next) {
     }
 
     // ✅ FIXED LOGIC (teacher OR admin allowed)
-    if (claims.role !== "teacher" && claims.role !== "admin") {
+    if (claims.Role !== "teacher" && claims.Role !== "admin") {
         return res.status(403).json({
             message: "Not Authorized for the service",
         });
