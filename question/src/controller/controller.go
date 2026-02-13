@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func RegisterTheoryQuestionSet(w http.ResponseWriter, r *http.Request) {
@@ -175,11 +176,11 @@ func RegisterTheoryExam(w http.ResponseWriter, r *http.Request) {
 }
 
 func RegisterTheoryAndMCQExam(w http.ResponseWriter, r *http.Request) {
-	authCtx, ok := r.Context().Value(middleware.AuthKey).(middleware.AuthContext)
-	if !ok {
-		http.Error(w, "Error in auth context", http.StatusUnauthorized)
-		return
-	}
+	// authCtx, ok := r.Context().Value(middleware.AuthKey).(middleware.AuthContext)
+	// if !ok {
+	// 	http.Error(w, "Error in auth context", http.StatusUnauthorized)
+	// 	return
+	// }
 	var examRequest dto.BothQuestionsExam
 	err := json.NewDecoder(r.Body).Decode(&examRequest)
 	if err != nil {
@@ -193,7 +194,6 @@ func RegisterTheoryAndMCQExam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mongoRes, err := db.GetExamCollection().InsertOne(r.Context(), models.BothQuestionsExam{
-		UserID: 		authCtx.UserID,
 		Subject:        examRequest.Subject,
 		Semester:       examRequest.Semester,
 		Category:       models.CategoryBoth,
@@ -213,7 +213,7 @@ func RegisterTheoryAndMCQExam(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(apiResp)
 }
 
-func GetExam(w http.ResponseWriter, r *http.Request) {
+func GetTheoryAndMCQExam(w http.ResponseWriter, r *http.Request) {
 	subject := chi.URLParam(r, "subject")
 	semester := chi.URLParam(r, "semester")
 
@@ -246,6 +246,107 @@ func GetExam(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(apiResp)
 }
+
+func GetTheoryExam(w http.ResponseWriter, r *http.Request) {
+	subject := chi.URLParam(r, "subject")
+	semester := chi.URLParam(r, "semester")
+
+	ctx , cancle := context.WithTimeout(context.Background() , 10*time.Second)
+	defer cancle()
+
+	collection := db.GetExamCollection()
+
+	filter := bson.M{
+		"subject" : subject,
+		"semester" : semester,
+	}
+	cursor , err := collection.Find(ctx , filter)
+	if err != nil {
+		http.Error(w, "Database error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var exams []models.TheoryExam
+	if err := cursor.All(ctx , &exams); err != nil {
+		http.Error(w, "Cursor error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	apiResp := map[string]interface{}{
+		"message" : "Exams fetched successfully",
+		"exams" : exams,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(apiResp)
+}
+
+func GetMCQExam(w http.ResponseWriter, r *http.Request) {
+	subject := chi.URLParam(r, "subject")
+	semester := chi.URLParam(r, "semester")
+
+	ctx , cancle := context.WithTimeout(context.Background() , 10*time.Second)
+	defer cancle()
+
+	collection := db.GetExamCollection()
+
+	filter := bson.M{
+		"subject" : subject,
+		"semester" : semester,
+	}
+	cursor , err := collection.Find(ctx , filter)
+	if err != nil {
+		http.Error(w, "Database error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var exams []models.MCQExam
+	if err := cursor.All(ctx , &exams); err != nil {
+		http.Error(w, "Cursor error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	apiResp := map[string]interface{}{
+		"message" : "Exams fetched successfully",
+		"exams" : exams,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(apiResp)
+}
+
+func GetExamByID(w http.ResponseWriter, r *http.Request) {
+	examIDParam := chi.URLParam(r, "id")
+
+	// 🔥 Convert string to ObjectID
+	objectID, err := primitive.ObjectIDFromHex(examIDParam)
+	if err != nil {
+		http.Error(w, "Invalid exam ID", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	collection := db.GetExamCollection()
+
+	var exam map[string]interface{}
+	err = collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&exam)
+	if err != nil {
+		http.Error(w, "Exam not found", http.StatusNotFound)
+		return
+	}
+
+	apiResp := map[string]interface{}{
+		"message": "Exam fetched successfully",
+		"exam":    exam,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(apiResp)
+}
+
 	
 
 func GetQuestion(w http.ResponseWriter, r *http.Request) {

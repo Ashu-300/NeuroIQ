@@ -1,5 +1,6 @@
 package models
 
+import "go.mongodb.org/mongo-driver/bson/primitive"
 
 type TheoryQuestions struct {
 	UserID    string           `json:"user_id" bson:"user_id" validate:"required"`
@@ -20,15 +21,6 @@ type MCQQuestions struct {
 	Semester  string        `json:"semester" bson:"semester" validate:"required"`
 	Category  Category      `json:"category" bson:"category" validate:"required"`
 	Questions []MCQQuestion `json:"mcq_questions" bson:"mcq_questions" validate:"required"`
-}
-
-type BothQuestionsExam struct {
-	UserID          string           `json:"user_id" bson:"user_id" validate:"required"`
-	Subject         string           `json:"subject" bson:"subject" validate:"required"`
-	Semester        string           `json:"semester" bson:"semester" validate:"required"`
-	Category        Category         `json:"category" bson:"category" validate:"required"`
-	TheoryQuestions []TheoryQuestion `json:"theory_questions" bson:"theory_questions" validate:"required"`
-	MCQQuestions    []MCQQuestion    `json:"mcq_questions" bson:"mcq_questions" validate:"required"`
 }
 
 type MCQQuestion struct {
@@ -59,3 +51,11 @@ type TheoryExam struct {
 	QuestionList []TheoryQuestion `json:"mcq_questions" bson:"mcq_questions" validate:"required"`
 }
 
+type BothQuestionsExam struct {
+	ID              primitive.ObjectID 		`json:"_id" bson:"_id"`
+	Subject         string           		`json:"subject" bson:"subject" validate:"required"`
+	Semester        string           		`json:"semester" bson:"semester" validate:"required"`
+	Category        Category         		`json:"category" bson:"category" validate:"required"`
+	TheoryQuestions []TheoryQuestion 		`json:"theory_questions" bson:"theory_questions" validate:"required"`
+	MCQQuestions    []MCQQuestion    		`json:"mcq_questions" bson:"mcq_questions" validate:"required"`
+}

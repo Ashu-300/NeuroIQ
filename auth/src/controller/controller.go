@@ -17,14 +17,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func Signup(w http.ResponseWriter , r *http.Request){
+func Signup(w http.ResponseWriter, r *http.Request) {
 	var user dto.UserRegisterDTO
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
-		http.Error(w , "Failed to decode user details" , http.StatusBadRequest)
+		http.Error(w, "Failed to decode user details", http.StatusBadRequest)
 		return
 	}
-	
+
 	validate := validator.New()
 	if err := validate.Struct(&user); err != nil {
 		http.Error(w, "Validation error: "+err.Error(), http.StatusBadRequest)
@@ -40,24 +40,24 @@ func Signup(w http.ResponseWriter , r *http.Request){
 		return
 	}
 
-	passwordHash , err := bcrypt.GenerateFromPassword([]byte(user.Password) , bcrypt.DefaultCost)
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
-		http.Error(w , "failed to hash password" , http.StatusInternalServerError)
+		http.Error(w, "failed to hash password", http.StatusInternalServerError)
 		return
 	}
 	user.Password = string(passwordHash)
 
 	userDB := models.User{
-		Name: user.Name,
-		Email: user.Email,
+		Name:         user.Name,
+		Email:        user.Email,
 		PasswordHash: user.Password,
-		Role: user.Role,
-		Institution: user.Institution,
+		Role:         user.Role,
+		Institution:  user.Institution,
 	}
 
 	err = repository.CreateUser(&userDB)
 	if err != nil {
-		http.Error(w , "failed to save user data in db" , http.StatusInternalServerError)
+		http.Error(w, "failed to save user data in db", http.StatusInternalServerError)
 		return
 	}
 
@@ -70,9 +70,14 @@ func Signup(w http.ResponseWriter , r *http.Request){
 
 }
 
-
 func RegisterStudent(w http.ResponseWriter, r *http.Request) {
 	var student dto.StudentRegisterDTO
+
+	authData, ok := r.Context().Value(middleware.AuthKey).(middleware.AuthContext)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	// Decode request body
 	err := json.NewDecoder(r.Body).Decode(&student)
@@ -89,7 +94,7 @@ func RegisterStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ensure referenced user exists
-	user, _ := repository.GetUserByID(student.UserID)
+	user, _ := repository.GetUserByID(authData.UserID)
 	if user == nil {
 		http.Error(w, "User ID does not exist", http.StatusBadRequest)
 		return
@@ -111,12 +116,14 @@ func RegisterStudent(w http.ResponseWriter, r *http.Request) {
 		FirstName:    student.FirstName,
 		LastName:     student.LastName,
 		RollNumber:   student.RollNumber,
+		EnrollmentNo: student.EnrollmentNo,
 		Branch:       student.Branch,
 		Semester:     student.Semester,
 		Section:      student.Section,
 		Email:        student.Email,
 		Phone:        student.Phone,
-		UserID:       student.UserID,
+		UserID:       authData.UserID,
+		Active:       true,
 	}
 
 	// Save in DB
@@ -157,13 +164,10 @@ func GetStudentProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
-
 	// 5. Return student
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(student)
 }
-
 
 func Login(w http.ResponseWriter, r *http.Request) {
 	var req dto.UserLoginDTO
@@ -199,8 +203,8 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "User logged in successfully",
-		"accessToken":   accessToken,
+		"message":      "User logged in successfully",
+		"accessToken":  accessToken,
 		"refreshToken": refreshToken,
 		"User": dto.LoginResponseDTO{
 			Name: user.Name,
@@ -238,7 +242,7 @@ func RefreshToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid or expired refresh token", http.StatusUnauthorized)
 		return
 	}
-	user , err := repository.GetUserByID(claim.ID)
+	user, err := repository.GetUserByID(claim.ID)
 	if err != nil || user == nil {
 		http.Error(w, "User not found", http.StatusUnauthorized)
 		return
@@ -253,7 +257,7 @@ func RefreshToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "User token refreshed  successfully",
+		"message":      "User token refreshed  successfully",
 		"accessToken":  newAccessToken,
 		"refreshToken": newRefreshToken,
 	})
@@ -290,7 +294,6 @@ func GetUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
-
 
 func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	// Get logged-in user from auth context
@@ -332,7 +335,6 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	if req.Institution != nil {
 		user.Institution = *req.Institution
 	}
-	
 
 	user.UpdatedAt = time.Now()
 

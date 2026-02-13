@@ -1,10 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { STORAGE_KEYS } from '../utils/constants';
+import { STORAGE_KEYS, WS_PROCTORING_URL } from '../utils/constants';
 
 /**
  * Custom hook for WebSocket connection (proctoring)
  */
-export const useWebSocket = (url) => {
+export const useWebSocket = (sessionId) => {
   const wsRef = useRef(null);
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState(null);
@@ -20,7 +20,20 @@ export const useWebSocket = (url) => {
 
     try {
       const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
-      const wsUrl = token ? `${url}?token=${token}` : url;
+      let wsUrl = WS_PROCTORING_URL;
+
+      const params = new URLSearchParams();
+      if (sessionId) {
+        params.append('session_id', sessionId);
+      }
+      if (token) {
+        params.append('token', token);
+      }
+
+      const queryString = params.toString();
+      if (queryString) {
+        wsUrl = `${WS_PROCTORING_URL}?${queryString}`;
+      }
       
       wsRef.current = new WebSocket(wsUrl);
 
@@ -58,7 +71,7 @@ export const useWebSocket = (url) => {
     } catch (err) {
       setError(err.message);
     }
-  }, [url]);
+  }, [sessionId]);
 
   /**
    * Disconnect WebSocket

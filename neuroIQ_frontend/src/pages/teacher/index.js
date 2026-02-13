@@ -6,3 +6,4 @@ export { default as GeneratedMCQPage } from './GeneratedMCQPage';
 export { default as QuestionBankPage } from './QuestionBankPage';
 export { default as CreateExamPage } from './CreateExamPage';
 export { default as ExamListPage } from './ExamListPage';
+export { default as ScheduledExamsPage } from './ScheduledExamsPage';

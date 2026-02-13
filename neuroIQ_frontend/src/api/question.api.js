@@ -115,7 +115,7 @@ export const getExam = async (examId) => {
  * Response: { message: string, exams: [{ _id, subject, semester, category, theory_questions, mcq_questions }] }
  */
 export const getExamsBySubjectAndSemester = async (subject, semester) => {
-  const response = await questionApi.get(`/api/question/exam/subject/${encodeURIComponent(subject)}/semester/${encodeURIComponent(semester)}`);
+  const response = await questionApi.get(`/api/question/exam/both/subject/${encodeURIComponent(subject)}/semester/${encodeURIComponent(semester)}`);
   return response.data;
 };
 

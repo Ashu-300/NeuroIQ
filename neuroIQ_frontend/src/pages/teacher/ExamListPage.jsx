@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Card, CardTitle, Input, Select, Loader } from '../../components/ui';
 import { EmptyState } from '../../components/feedback';
 import { getExamsBySubjectAndSemester } from '../../api/question.api';
+import { scheduleExam } from '../../api/management.api';
 
 const ExamListPage = () => {
   const navigate = useNavigate();
@@ -14,6 +15,43 @@ const ExamListPage = () => {
   const [semester, setSemester] = useState('');
   const [error, setError] = useState('');
   const [viewingExam, setViewingExam] = useState(null);
+  
+  // Schedule Exam Modal State
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [scheduleError, setScheduleError] = useState('');
+  const [scheduleSuccess, setScheduleSuccess] = useState('');
+  const [scheduleForm, setScheduleForm] = useState({
+    exam_id: '',
+    title: '',
+    subject: '',
+    branch: '',        // ✅ NEW
+    semester: '',
+    date: '',
+    start_time: '',
+    end_time: '',
+    duration_min: '',
+    total_marks: '',
+  });
+
+  // Open schedule modal with exam pre-filled
+  const handleScheduleExam = (exam) => {
+    setScheduleForm({
+      exam_id: exam._id || exam.id,
+      title: '',
+      subject: exam.subject,
+      branch: exam.branch || '', // ✅ NEW
+      semester: exam.semester,
+      date: '',
+      start_time: '',
+      end_time: '',
+      duration_min: '',
+      total_marks: String(exam.totalMarks),
+    });
+    setShowScheduleModal(true);
+    setScheduleError('');
+    setScheduleSuccess('');
+  };
 
   const fetchExams = async () => {
     if (!subject.trim() || !semester.trim()) {
@@ -26,6 +64,7 @@ const ExamListPage = () => {
       const response = await getExamsBySubjectAndSemester(subject.trim(), semester.trim());
       const fetchedExams = (response.exams || []).map((exam) => ({
         id: exam._id,
+        _id: exam._id,
         subject: exam.subject,
         semester: exam.semester,
         type: exam.category || 'BOTH',
@@ -210,6 +249,59 @@ const ExamListPage = () => {
     });
   };
 
+  const handleScheduleSubmit = async (e) => {
+    e.preventDefault();
+    setScheduleError('');
+    setScheduleSuccess('');
+    
+    // Validation
+    if (!scheduleForm.exam_id || !scheduleForm.title || !scheduleForm.subject ||  !scheduleForm.branch ||  !scheduleForm.semester || 
+        !scheduleForm.date || !scheduleForm.start_time || !scheduleForm.end_time || 
+        !scheduleForm.duration_min || !scheduleForm.total_marks) {
+      setScheduleError('All fields are required');
+      return;
+    }
+
+    setIsScheduling(true);
+    try {
+      const payload = {
+        exam_id: scheduleForm.exam_id,
+        title: scheduleForm.title,
+        subject: scheduleForm.subject,
+        branch: scheduleForm.branch,
+        semester: scheduleForm.semester,
+        date: new Date(scheduleForm.date).toISOString(),
+        start_time: scheduleForm.start_time,
+        end_time: scheduleForm.end_time,
+        duration_min: parseInt(scheduleForm.duration_min, 10),
+        total_marks: parseInt(scheduleForm.total_marks, 10),
+      };
+      
+      await scheduleExam(payload);
+      setScheduleSuccess('Exam scheduled successfully!');
+      setScheduleForm({
+        exam_id: '',
+        title: '',
+        subject: '',
+        branch: '',
+        semester: '',
+        date: '',
+        start_time: '',
+        end_time: '',
+        duration_min: '',
+        total_marks: '',
+      });
+      setTimeout(() => {
+        setShowScheduleModal(false);
+        setScheduleSuccess('');
+      }, 1500);
+    } catch (err) {
+      setScheduleError(err.message || 'Failed to schedule exam');
+    } finally {
+      setIsScheduling(false);
+    }
+  };
+
   const getTypeBadgeColor = (type) => {
     switch (type) {
       case 'THEORY':
@@ -369,34 +461,43 @@ const ExamListPage = () => {
                   Created {formatDate(exam.createdAt)}
                 </div>
 
-                <div className="pt-2 flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    fullWidth
-                    onClick={() => handleViewExam(exam)}
-                  >
-                    View
-                  </Button>
-                  <div className="relative group flex-1">
-                    <Button variant="secondary" size="sm" fullWidth>
-                      Download ▾
+                <div className="pt-2 flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      fullWidth
+                      onClick={() => handleViewExam(exam)}
+                    >
+                      View
                     </Button>
-                    <div className="absolute right-0 mt-1 w-32 bg-white rounded-md shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                      <button
-                        onClick={() => handleDownloadText(exam)}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      >
-                        📄 Text File
-                      </button>
-                      <button
-                        onClick={() => handleDownloadPDF(exam)}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      >
-                        📑 PDF
-                      </button>
+                    <div className="relative group flex-1">
+                      <Button variant="secondary" size="sm" fullWidth>
+                        Download ▾
+                      </Button>
+                      <div className="absolute right-0 mt-1 w-32 bg-white rounded-md shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                        <button
+                          onClick={() => handleDownloadText(exam)}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          📄 Text File
+                        </button>
+                        <button
+                          onClick={() => handleDownloadPDF(exam)}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          📑 PDF
+                        </button>
+                      </div>
                     </div>
                   </div>
+                  <Button 
+                    size="sm" 
+                    fullWidth
+                    onClick={() => handleScheduleExam(exam)}
+                  >
+                    Schedule This Exam
+                  </Button>
                 </div>
               </div>
             </Card>
@@ -522,6 +623,169 @@ const ExamListPage = () => {
                 Close
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Exam Modal */}
+      {showScheduleModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-gray-900">Schedule Exam</h2>
+              <button
+                onClick={() => {
+                  setShowScheduleModal(false);
+                  setScheduleError('');
+                  setScheduleSuccess('');
+                }}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleScheduleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+              {scheduleError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+                  {scheduleError}
+                </div>
+              )}
+              {scheduleSuccess && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-md text-green-700 text-sm">
+                  {scheduleSuccess}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Exam Title *</label>
+                <Input
+                  placeholder="e.g., End Semester Exam"
+                  value={scheduleForm.title}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, title: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject *</label>
+                  <Input
+                    placeholder="e.g., Data Structures"
+                    value={scheduleForm.subject}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, subject: e.target.value })}
+                  />
+                </div>
+                {/* Branch Dropdown */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Branch *
+                  </label>
+                  <Select
+                    options={[
+                      { value: '', label: 'Select Branch' },
+                      { value: 'CSE', label: 'CSE' },
+                      { value: 'IT', label: 'IT' },
+                      { value: 'ECE', label: 'ECE' },
+                      { value: 'MECH', label: 'MECH' },
+                      { value: 'CIVIL', label: 'CIVIL' },
+                      { value: 'EE', label: 'EE' },
+                      { value: 'EC', label: 'EC' },
+                    ]}
+                    value={scheduleForm.branch}
+                    onChange={(e) =>
+                      setScheduleForm({ ...scheduleForm, branch: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Semester *</label>
+                  <Select
+                    options={[
+                      { value: '', label: 'Select Semester' },
+                      { value: '1', label: 'Semester 1' },
+                      { value: '2', label: 'Semester 2' },
+                      { value: '3', label: 'Semester 3' },
+                      { value: '4', label: 'Semester 4' },
+                      { value: '5', label: 'Semester 5' },
+                      { value: '6', label: 'Semester 6' },
+                      { value: '7', label: 'Semester 7' },
+                      { value: '8', label: 'Semester 8' },
+                    ]}
+                    value={scheduleForm.semester}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, semester: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Exam Date *</label>
+                <Input
+                  type="date"
+                  value={scheduleForm.date}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+                  <Input
+                    type="time"
+                    value={scheduleForm.start_time}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, start_time: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
+                  <Input
+                    type="time"
+                    value={scheduleForm.end_time}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, end_time: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes) *</label>
+                  <Input
+                    type="number"
+                    placeholder="e.g., 180"
+                    value={scheduleForm.duration_min}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, duration_min: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Total Marks *</label>
+                  <Input
+                    type="number"
+                    placeholder="e.g., 100"
+                    value={scheduleForm.total_marks}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, total_marks: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="pt-4 flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowScheduleModal(false);
+                    setScheduleError('');
+                    setScheduleSuccess('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" loading={isScheduling}>
+                  Schedule Exam
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}
