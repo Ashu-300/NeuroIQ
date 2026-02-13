@@ -79,5 +79,5 @@ type StudentRegisterDTO struct {
 	Email        string `json:"email" validate:"required,email"`
 	Phone        string `json:"phone" validate:"omitempty"`
 
-	UserID       string `json:"user_id" validate:"required"` // FK: user must exist before creating student
+	// UserID       string `json:"user_id" validate:"required"` // FK: user must exist before creating student
 }

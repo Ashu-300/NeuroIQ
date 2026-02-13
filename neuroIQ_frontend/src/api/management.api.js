@@ -101,6 +101,58 @@ export const getSeatingArrangement = async (examId) => {
   return response.data;
 };
 
+/**
+ * Schedule a new exam
+ * POST /api/management/schedule/exam
+ * Request: { exam_id, title, subject, semester, date, start_time, end_time, duration_min, total_marks }
+ * Response: { exam_id, title, subject, semester, date, start_time, end_time, duration_min, total_marks, created_by, created_at }
+ */
+export const scheduleExam = async (examData) => {
+  const response = await managementApi.post('/api/management/schedule/exam', examData);
+  return response.data;
+};
+
+/**
+ * Get scheduled exams for a specific branch and semester
+ * GET /api/management/get/scheduled-exams/branch/{branch}/semester/{semester}
+ * Response: [{ exam_id, title, subject, semester, date, start_time, end_time, duration_min, total_marks, created_by, created_at }]
+ */
+export const getScheduledExams = async (branch, semester) => {
+  const response = await managementApi.get(`/api/management/get/scheduled-exams/branch/${encodeURIComponent(branch)}/semester/${encodeURIComponent(semester)}`);
+  return response.data;
+};
+
+/**
+ * Get details of a specific scheduled exam
+ * GET /api/management/get/exam-details/{scheduleID}
+ * Response: { exam_id, title, subject, semester, date, start_time, end_time, duration_min, total_marks, created_by, created_at }
+ */
+export const getScheduledExamDetails = async (scheduleId) => {
+  const response = await managementApi.get(`/api/management/get/exam-details/${scheduleId}`);
+  return response.data;
+};
+
+/**
+ * Delete a scheduled exam
+ * DELETE /api/management/delete/scheduled-exam/{scheduleID}
+ * Response: { message: string }
+ */
+export const deleteScheduledExam = async (scheduleId) => {
+  const response = await managementApi.delete(`/api/management/delete/scheduled-exam/${scheduleId}`);
+  return response.data;
+};
+
+/**
+ * Update exam time
+ * PUT /api/management/update/exam-time/{scheduleID}
+ * Request: { start_time, end_time }
+ * Response: { message: string }
+ */
+export const updateExamTime = async (scheduleId, timeData) => {
+  const response = await managementApi.put(`/api/management/update/exam-time/${scheduleId}`, timeData);
+  return response.data;
+};
+
 export default {
   registerRoom,
   registerMultipleRooms,
@@ -111,4 +163,9 @@ export default {
   generateSeatingArrangement,
   saveSeatingArrangement,
   getSeatingArrangement,
+  scheduleExam,
+  getScheduledExams,
+  getScheduledExamDetails,
+  deleteScheduledExam,
+  updateExamTime,
 };

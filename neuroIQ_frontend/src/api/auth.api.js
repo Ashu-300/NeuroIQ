@@ -37,10 +37,10 @@ export const refreshToken = async (token) => {
 };
 
 /**
- * Register a student (admin/teacher function)
+ * Register a student profile (for authenticated students)
  * POST /register/student
- * Request: { name: string, email: string, password: string, roll_no: string, branch: string, semester: string }
- * Response: { message: string, student: { id, name, email, roll_no, branch, semester } }
+ * Request: { first_name, last_name, roll_number, enrollment_no, branch, semester, section, email, phone }
+ * Response: { message: string }
  */
 export const registerStudent = async (studentData) => {
   const response = await authApi.post('/api/auth/register/student', studentData);

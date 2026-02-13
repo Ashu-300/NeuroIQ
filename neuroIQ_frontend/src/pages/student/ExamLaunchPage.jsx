@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStudentExams } from '../../api/proctoring.api';
-import { Button, Card, CardTitle, Loader } from '../../components/ui';
+import { getScheduledExams } from '../../api/management.api';
+import { Button, Card, CardTitle, Loader, Select } from '../../components/ui';
 import { EmptyState } from '../../components/feedback';
 
 const ExamLaunchPage = () => {
@@ -9,43 +9,86 @@ const ExamLaunchPage = () => {
   const [exams, setExams] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedExam, setSelectedExam] = useState(null);
+  const [studentProfile, setStudentProfile] = useState(null);
+  const [error, setError] = useState('');
+  const [branch, setBranch] = useState('');
+  const [semester, setSemester] = useState('');
 
   useEffect(() => {
-    fetchExams();
+    const storedProfile = localStorage.getItem('neuroiq_student_profile');
+    if (storedProfile) {
+      const parsedProfile = JSON.parse(storedProfile);
+      setStudentProfile(parsedProfile);
+      // Do not auto-fetch; user will select branch & semester
+      setIsLoading(false);
+    } else {
+      setIsLoading(false);
+      setError('Select your branch and semester below to see your scheduled exams. You can also complete your student profile to save these details.');
+    }
   }, []);
 
-  const fetchExams = async () => {
+  const fetchExams = async (branchValue, semesterValue) => {
     setIsLoading(true);
     try {
-      const response = await getStudentExams();
-      setExams(response.data?.exams || []);
+      if (!branchValue || !semesterValue) {
+        setError('Please select both branch and semester to see your exams');
+        setExams([]);
+        return;
+      }
+
+      const response = await getScheduledExams(branchValue, semesterValue);
+      // Transform the response to expected format and determine status
+      const now = new Date();
+      const transformedExams = (response || []).map((exam, idx) => {
+        // exam.exam_id -> question bank / proctoring exam id
+        // exam._id     -> scheduled exam record id
+        const proctorExamId = exam.exam_id || exam._id || `exam-${idx}`;
+        const examDate = new Date(exam.date);
+        const [startHour, startMin] = exam.start_time.split(':').map(Number);
+        const [endHour, endMin] = exam.end_time.split(':').map(Number);
+        
+        const startDateTime = new Date(examDate);
+        startDateTime.setHours(startHour, startMin, 0);
+        
+        const endDateTime = new Date(examDate);
+        endDateTime.setHours(endHour, endMin, 0);
+
+        let status = 'upcoming';
+        if (now >= startDateTime && now <= endDateTime) {
+          status = 'live';
+        } else if (now > endDateTime) {
+          status = 'completed';
+        }
+
+        return {
+          id: proctorExamId,
+          schedule_id: exam._id,
+          title: exam.title,
+          subject: exam.subject,
+          semester: exam.semester,
+          duration: exam.duration_min,
+          total_marks: exam.total_marks,
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString(),
+          status,
+          type: 'BOTH',
+        };
+      });
+      
+      // Sort by date, upcoming first
+      transformedExams.sort((a, b) => {
+        if (a.status === 'live' && b.status !== 'live') return -1;
+        if (b.status === 'live' && a.status !== 'live') return 1;
+        if (a.status === 'upcoming' && b.status === 'completed') return -1;
+        if (b.status === 'upcoming' && a.status === 'completed') return 1;
+        return new Date(a.start_time) - new Date(b.start_time);
+      });
+      
+      setExams(transformedExams);
     } catch (err) {
       console.error('Failed to fetch exams:', err);
-      // Demo data
-      setExams([
-        {
-          id: 'exam1',
-          title: 'Mid Semester - Data Structures',
-          subject: 'Data Structures',
-          duration: 120,
-          total_marks: 100,
-          start_time: '2024-01-15T09:00:00Z',
-          end_time: '2024-01-15T11:00:00Z',
-          status: 'upcoming',
-          type: 'THEORY',
-        },
-        {
-          id: 'exam2',
-          title: 'Quiz 1 - Computer Networks',
-          subject: 'Computer Networks',
-          duration: 30,
-          total_marks: 25,
-          start_time: '2024-01-16T14:00:00Z',
-          end_time: '2024-01-16T14:30:00Z',
-          status: 'live',
-          type: 'MCQ',
-        },
-      ]);
+      setExams([]);
+      setError('Failed to load exams');
     } finally {
       setIsLoading(false);
     }
@@ -122,6 +165,59 @@ const ExamLaunchPage = () => {
           <div>
             <h3 className="font-medium text-blue-800">Before starting an exam</h3>
             <ul className="mt-1 text-sm text-blue-700 list-disc list-inside space-y-1">
+        {/* Filters */}
+        <Card className="mt-2" padding="md">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <Select
+              label="Branch"
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+              options={[
+                { value: '', label: 'Select Branch' },
+                { value: 'CSE', label: 'CSE' },
+                { value: 'IT', label: 'IT' },
+                { value: 'ECE', label: 'ECE' },
+                { value: 'MECH', label: 'MECH' },
+                { value: 'CIVIL', label: 'CIVIL' },
+                { value: 'EE', label: 'EE' },
+                { value: 'EC', label: 'EC' },
+              ]}
+            />
+            <Select
+              label="Semester"
+              value={semester}
+              onChange={(e) => setSemester(e.target.value)}
+              options={[
+                { value: '', label: 'Select Semester' },
+                { value: '1', label: '1st' },
+                { value: '2', label: '2nd' },
+                { value: '3', label: '3rd' },
+                { value: '4', label: '4th' },
+                { value: '5', label: '5th' },
+                { value: '6', label: '6th' },
+                { value: '7', label: '7th' },
+                { value: '8', label: '8th' },
+              ]}
+            />
+            <div className="space-y-2">
+              <Button
+                className="w-full md:w-auto"
+                onClick={() => {
+                  if (branch && semester) {
+                    fetchExams(branch, semester);
+                  }
+                }}
+                disabled={!branch || !semester}
+              >
+                Load Exams
+              </Button>
+              <p className="text-xs text-gray-500">
+                Select your branch and semester to see scheduled exams.
+              </p>
+            </div>
+          </div>
+        </Card>
+
               <li>Ensure your webcam is working properly</li>
               <li>Find a quiet, well-lit place</li>
               <li>Close all other applications</li>
@@ -131,7 +227,13 @@ const ExamLaunchPage = () => {
         </div>
       </Card>
 
-      {exams.length === 0 ? (
+      {error && (
+        <Card>
+          <p className="text-red-600 text-sm text-center py-2">{error}</p>
+        </Card>
+      )}
+
+      {exams.length === 0 && !error ? (
         <EmptyState
           title="No exams scheduled"
           description="You don't have any upcoming exams at the moment"

@@ -10,8 +10,9 @@ import { LoginPage, SignupPage } from '../pages/auth';
 
 // Dashboard Pages
 import { Dashboard as AdminDashboard, RoomManagementPage, SeatingGenerationPage, AttendancePage } from '../pages/admin';
-import { Dashboard as TeacherDashboard, UploadSyllabusPage, GenerateFromTextPage, GeneratedQuestionsPage, GeneratedMCQPage, QuestionBankPage, CreateExamPage, ExamListPage } from '../pages/teacher';
+import { Dashboard as TeacherDashboard, UploadSyllabusPage, GenerateFromTextPage, GeneratedQuestionsPage, GeneratedMCQPage, QuestionBankPage, CreateExamPage, ExamListPage, ScheduledExamsPage } from '../pages/teacher';
 import { Dashboard as StudentDashboard, ExamLaunchPage, IdentityVerificationPage, ProctoringExamPage } from '../pages/student';
+import ProfilePage from '../pages/ProfilePage';
 
 const Router = () => {
   return (
@@ -61,6 +62,7 @@ const Router = () => {
           <Route path="question-bank" element={<QuestionBankPage />} />
           <Route path="create-exam" element={<CreateExamPage />} />
           <Route path="exams" element={<ExamListPage />} />
+          <Route path="scheduled-exams" element={<ScheduledExamsPage />} />
         </Route>
 
         {/* Student Routes */}
@@ -81,6 +83,16 @@ const Router = () => {
           <Route path="proctoring-exam" element={<ProctoringExamPage />} />
           <Route path="reports" element={<div className="p-4">Exam Reports (Coming Soon)</div>} />
         </Route>
+
+        {/* Profile Route - accessible by all authenticated users */}
+        <Route
+          path="/profile"
+          element={
+            <AuthGuard>
+              <ProfilePage />
+            </AuthGuard>
+          }
+        />
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/login" replace />} />

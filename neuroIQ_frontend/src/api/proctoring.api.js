@@ -25,19 +25,21 @@ export const getExamQuestions = async (examId) => {
 
 /**
  * Start exam session
- * POST /api/exam/start
+ * POST /api/proctoring/exam/start
  * Request: { exam_id: string }
- * Response: { session_id: string, started_at: string }
+ * Response: { session_id: string, exam_id: string, start_time: string, status: string }
  */
 export const startExam = async (examData) => {
-  const response = await proctoringApi.post('/api/proctoring/exam/start', examData);
+  const response = await proctoringApi.post('/api/proctoring/exam/start', {
+    exam_id: examData.exam_id,
+  });
   return response.data;
 };
 
 /**
  * Get exam session status
- * GET /api/exam/status/{session_id}
- * Response: { session_id, status, time_remaining, violations_count }
+ * GET /api/proctoring/exam/status?session_id=xxx
+ * Response: { session_id, status, start_time, elapsed_seconds, warnings }
  */
 export const getExamStatus = async (sessionId) => {
   const response = await proctoringApi.get('/api/proctoring/exam/status', {
@@ -47,32 +49,26 @@ export const getExamStatus = async (sessionId) => {
 };
 
 /**
- * Verify identity before exam
- * POST /api/proctor/verify-identity
- * Request: FormData with face_image, id_card_image, exam_id
- * Response: { verified: boolean, message: string, session_id?: string }
+ * Verify identity during exam
+ * POST /api/proctoring/proctor/verify-identity?session_id=xxx
+ * Request: FormData with frame (webcam image file)
+ * Response: { verified: boolean, message: string, session_id: string }
  */
-export const verifyIdentity = async (data) => {
+export const verifyIdentity = async (sessionId, frameData) => {
   const formData = new FormData();
   
   // Convert base64 to blob if needed
-  if (data.face_image.startsWith('data:')) {
-    const faceBlob = await fetch(data.face_image).then(r => r.blob());
-    formData.append('face_image', faceBlob, 'face.jpg');
+  if (typeof frameData === 'string' && frameData.startsWith('data:')) {
+    const frameBlob = await fetch(frameData).then(r => r.blob());
+    formData.append('frame', frameBlob, 'frame.jpg');
+  } else if (frameData instanceof Blob) {
+    formData.append('frame', frameData, 'frame.jpg');
   } else {
-    formData.append('face_image', data.face_image);
+    formData.append('frame', frameData);
   }
-  
-  if (data.id_card_image.startsWith('data:')) {
-    const idBlob = await fetch(data.id_card_image).then(r => r.blob());
-    formData.append('id_card_image', idBlob, 'id_card.jpg');
-  } else {
-    formData.append('id_card_image', data.id_card_image);
-  }
-  
-  formData.append('exam_id', data.exam_id);
 
   const response = await proctoringApi.post('/api/proctoring/proctor/verify-identity', formData, {
+    params: { session_id: sessionId },
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -83,8 +79,8 @@ export const verifyIdentity = async (data) => {
 /**
  * Process video frame for proctoring (used with WebSocket fallback)
  * POST /api/proctoring/proctor/frame
- * Request: FormData with frame blob
- * Response: { violations: [{ type, message, timestamp }] }
+ * Request: FormData with frame blob and session_id
+ * Response: { status, processed, auto_submit, violation_message? }
  */
 export const sendProctoringFrame = async (frameBlob, sessionId) => {
   const formData = new FormData();
@@ -100,20 +96,22 @@ export const sendProctoringFrame = async (frameBlob, sessionId) => {
 };
 
 /**
- * Submit exam answers
- * POST /api/submission/submit
- * Request: { exam_id, session_id, answers: [{ question_id, answer }], violations: [] }
- * Response: { success: boolean, message: string, score?: number }
+ * Submit exam
+ * POST /api/proctoring/submission/submit
+ * Request: { session_id: string }
+ * Response: { session_id, status, submitted_at, total_warnings, violations_count }
  */
-export const submitExam = async (submissionData) => {
-  const response = await proctoringApi.post('/api/proctoring/submission/submit', submissionData);
+export const submitExam = async (sessionId) => {
+  const response = await proctoringApi.post('/api/proctoring/submission/submit', {
+    session_id: sessionId,
+  });
   return response.data;
 };
 
 /**
  * Get exam report
- * GET /api/submission/report/{session_id}
- * Response: { session_id, score, total_marks, answers, violations, submitted_at }
+ * GET /api/proctoring/submission/report/{session_id}
+ * Response: { session_id, student_id, exam_id, start_time, end_time, duration_seconds, status, total_warnings, violations, identity_verified }
  */
 export const getExamReport = async (sessionId) => {
   const response = await proctoringApi.get(`/api/proctoring/submission/report/${sessionId}`);

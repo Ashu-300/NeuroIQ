@@ -35,19 +35,17 @@ const quickActions = [
     ),
     color: 'bg-purple-50',
   },
-];
-
-const stats = [
-  { label: 'Materials Uploaded', value: '12', change: '+2 this week' },
-  { label: 'Questions Generated', value: '245', change: '+38 today' },
-  { label: 'Question Sets', value: '8', change: '3 pending review' },
-  { label: 'Exams Created', value: '5', change: '2 published' },
-];
-
-const recentMaterials = [
-  { id: 1, subject: 'Data Structures', uploadedAt: '2 hours ago', questions: 42 },
-  { id: 2, subject: 'Operating Systems', uploadedAt: '1 day ago', questions: 35 },
-  { id: 3, subject: 'Computer Networks', uploadedAt: '3 days ago', questions: 28 },
+  {
+    title: 'Scheduled Exams',
+    description: 'View and manage scheduled exams',
+    path: '/teacher/scheduled-exams',
+    icon: (
+      <svg className="h-8 w-8 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    ),
+    color: 'bg-orange-50',
+  },
 ];
 
 const TeacherDashboard = () => {
@@ -59,21 +57,10 @@ const TeacherDashboard = () => {
         <p className="text-gray-500 mt-1">Create content and manage exams</p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <Card key={stat.label} padding="md">
-            <p className="text-sm font-medium text-gray-500">{stat.label}</p>
-            <p className="text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
-            <p className="text-sm text-green-600 mt-2">{stat.change}</p>
-          </Card>
-        ))}
-      </div>
-
       {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {quickActions.map((action) => (
             <Link key={action.path} to={action.path}>
               <Card hover className="h-full">
@@ -86,36 +73,6 @@ const TeacherDashboard = () => {
             </Link>
           ))}
         </div>
-      </div>
-
-      {/* Recent Materials */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Recent Materials</h2>
-          <Link to="/teacher/upload" className="text-sm text-indigo-600 hover:text-indigo-500">
-            View all →
-          </Link>
-        </div>
-        <Card padding="none">
-          <div className="divide-y divide-gray-100">
-            {recentMaterials.map((material) => (
-              <div
-                key={material.id}
-                className="flex items-center justify-between px-6 py-4 hover:bg-gray-50"
-              >
-                <div>
-                  <p className="font-medium text-gray-900">{material.subject}</p>
-                  <p className="text-sm text-gray-500">{material.uploadedAt}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-indigo-600">
-                    {material.questions} questions
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
       </div>
     </div>
   );

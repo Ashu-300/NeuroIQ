@@ -20,8 +20,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-
-
 var validate = validator.New()
 
 // ------------------------------------
@@ -153,10 +151,8 @@ func MarkAttendance(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
-
 func GenerateSeatingArrangement(w http.ResponseWriter, r *http.Request) {
-	
+
 	ctx := r.Context()
 
 	// api call to get student list based on first common roll number, semester and branch
@@ -244,7 +240,7 @@ func GenerateSeatingArrangement(w http.ResponseWriter, r *http.Request) {
 	// llm request to get seating arrangement
 	seattingRequestBody := dto.SeatingArrangementRequest{
 		Students: studentList,
-		Rooms:   rooms,
+		Rooms:    rooms,
 	}
 
 	jsonSeattingReq, err := json.Marshal(seattingRequestBody)
@@ -282,7 +278,7 @@ func GenerateSeatingArrangement(w http.ResponseWriter, r *http.Request) {
 			log.Printf("error closing LLM response body: %v", cerr)
 		}
 	}()
-	
+
 	// save to mongodb
 	var seatingArrangement []models.SeatingArragement
 	err = json.NewDecoder(seatingResp.Body).Decode(&seatingArrangement)
@@ -292,10 +288,10 @@ func GenerateSeatingArrangement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ , err = db.GetSeatingCollection().InsertOne(ctx , seatingArrangement)
+	_, err = db.GetSeatingCollection().InsertOne(ctx, seatingArrangement)
 	if err != nil {
 		log.Printf("failed to store seating list in mongodb: %v", err)
-		http.Error(w , "Failed to store seating arrangement in db" , http.StatusInternalServerError)
+		http.Error(w, "Failed to store seating arrangement in db", http.StatusInternalServerError)
 	}
 
 	// copy important headers (content-type) then forward status + body
@@ -311,7 +307,6 @@ func GenerateSeatingArrangement(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
 func ScheduleExam(w http.ResponseWriter, r *http.Request) {
 	var req dto.ScheduleExamRequest
 
@@ -326,11 +321,17 @@ func ScheduleExam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
+	objectExamID, err := primitive.ObjectIDFromHex(req.ExamID)
+	if err != nil {
+		http.Error(w, "Invalid Exam ID", http.StatusBadRequest)
+		return
+	}
 
 	exam := models.ScheduleExam{
+		ExamID:      objectExamID,
 		Title:       req.Title,
 		Subject:     req.Subject,
+		Branch:      req.Branch,
 		Semester:    req.Semester,
 		Date:        req.Date,
 		StartTime:   req.StartTime,
@@ -341,10 +342,10 @@ func ScheduleExam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	collection := db.GetExamScheduleCollection()
-	ctx , cancel := context.WithTimeout(r.Context() , 5*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	_, err := collection.InsertOne(ctx, exam)
+	_, err = collection.InsertOne(ctx, exam)
 	if err != nil {
 		http.Error(w, "Failed to schedule exam", http.StatusInternalServerError)
 		return
@@ -358,17 +359,20 @@ func ScheduleExam(w http.ResponseWriter, r *http.Request) {
 func GetScheduledExams(w http.ResponseWriter, r *http.Request) {
 	collection := db.GetExamScheduleCollection()
 
-	ctx , cancel := context.WithTimeout(r.Context() , 10*time.Second)
+	branch := chi.URLParam(r, "branch")
+	semester := chi.URLParam(r, "semester")
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	cursor, err := collection.Find(ctx, bson.M{})
+	cursor, err := collection.Find(ctx, bson.M{"branch": branch, "semester": semester})
 	if err != nil {
 		http.Error(w, "Failed to fetch exams", http.StatusInternalServerError)
 		return
 	}
 	defer cursor.Close(ctx)
 
-	var exams []models.ScheduleExam
+	var exams []map[string]interface{}
 	if err := cursor.All(ctx, &exams); err != nil {
 		http.Error(w, "Cursor error", http.StatusInternalServerError)
 		return
@@ -380,14 +384,14 @@ func GetScheduledExams(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetExamDetails(w http.ResponseWriter, r *http.Request) {
-	examID := chi.URLParam(r, "examID")
+	scheduleID := chi.URLParam(r, "scheduleID")
 
-	ctx , cancel := context.WithTimeout(r.Context() , 5*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	objectID, err := primitive.ObjectIDFromHex(examID)
+	objectID, err := primitive.ObjectIDFromHex(scheduleID)
 	if err != nil {
-		http.Error(w, "Invalid exam ID", http.StatusBadRequest)
+		http.Error(w, "Invalid schedule ID", http.StatusBadRequest)
 		return
 	}
 
@@ -406,14 +410,14 @@ func GetExamDetails(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteScheduledExam(w http.ResponseWriter, r *http.Request) {
-	examID := chi.URLParam(r, "examID")
+	scheduleID := chi.URLParam(r, "scheduleID")
 
-	ctx , cancel := context.WithTimeout(r.Context() , 5*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	objectID, err := primitive.ObjectIDFromHex(examID)
+	objectID, err := primitive.ObjectIDFromHex(scheduleID)
 	if err != nil {
-		http.Error(w, "Invalid exam ID", http.StatusBadRequest)
+		http.Error(w, "Invalid schedule ID", http.StatusBadRequest)
 		return
 	}
 
@@ -421,28 +425,28 @@ func DeleteScheduledExam(w http.ResponseWriter, r *http.Request) {
 
 	result, err := collection.DeleteOne(ctx, bson.M{"_id": objectID})
 	if err != nil {
-		http.Error(w, "Failed to delete exam", http.StatusInternalServerError)
+		http.Error(w, "Failed to delete schedule", http.StatusInternalServerError)
 		return
 	}
 
 	if result.DeletedCount == 0 {
-		http.Error(w, "Exam not found", http.StatusNotFound)
+		http.Error(w, "Schedule not found", http.StatusNotFound)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
-		"message": "Exam deleted successfully",
+		"message": "Schedule deleted successfully",
 	})
 }
 
 func UpdateExamTime(w http.ResponseWriter, r *http.Request) {
-	examID := chi.URLParam(r, "examID")
+	scheduleID := chi.URLParam(r, "scheduleID")
 
-	objectID, err := primitive.ObjectIDFromHex(examID)
+	objectID, err := primitive.ObjectIDFromHex(scheduleID)
 	if err != nil {
-		http.Error(w, "Invalid exam ID", http.StatusBadRequest)
+		http.Error(w, "Invalid schedule ID", http.StatusBadRequest)
 		return
 	}
 
@@ -451,19 +455,18 @@ func UpdateExamTime(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	
+
 	validate := validator.New()
 	if err := validate.Struct(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	
-
 	collection := db.GetExamScheduleCollection()
 
 	update := bson.M{
 		"$set": bson.M{
+			"date":       req.Date,
 			"start_time": req.StartTime,
 			"end_time":   req.EndTime,
 		},
@@ -475,18 +478,16 @@ func UpdateExamTime(w http.ResponseWriter, r *http.Request) {
 		update,
 	)
 	if err != nil {
-		http.Error(w, "Failed to update exam time", http.StatusInternalServerError)
+		http.Error(w, "Failed to update schedule time", http.StatusInternalServerError)
 		return
 	}
 
 	if result.MatchedCount == 0 {
-		http.Error(w, "Exam not found", http.StatusNotFound)
+		http.Error(w, "Schedule not found", http.StatusNotFound)
 		return
 	}
 
 	json.NewEncoder(w).Encode(map[string]string{
-		"message": "Exam time updated successfully",
+		"message": "Schedule time updated successfully",
 	})
 }
-
-

@@ -14,6 +14,7 @@ func SetupManagementRoutes() chi.Router{
 	router.Post("/register/multiple-room" , controller.RegisterMultipleRoom)
 	router.Get("/get/rooms" , controller.GetRooms)
 	router.Post("/mark/attendance" , controller.MarkAttendance)
+	router.Get("/get/scheduled-exams/branch/{branch}/semester/{semester}" , controller.GetScheduledExams)
 
 
 	router.Group(func(r chi.Router){
@@ -21,10 +22,9 @@ func SetupManagementRoutes() chi.Router{
 		r.Post("/generate-seating-arrangement" , controller.GenerateSeatingArrangement)
 		// schedule exam
 		r.Post("/schedule/exam" , controller.ScheduleExam)
-		r.Get("/get/scheduled-exams" , controller.GetScheduledExams)
-		r.Get("/get/exam-details/{examID}" , controller.GetExamDetails)
-		r.Delete("/delete/scheduled-exam/{examID}" , controller.DeleteScheduledExam)
-		r.Put("/update/exam-time/{examID}", controller.UpdateExamTime)
+		r.Get("/get/exam-details/{scheduleID}" , controller.GetExamDetails)
+		r.Delete("/delete/scheduled-exam/{scheduleID}" , controller.DeleteScheduledExam)
+		r.Put("/update/exam-time/{scheduleID}", controller.UpdateExamTime)
 	})
 
 	return router

@@ -951,6 +951,189 @@ Content-Type: application/json
 
 ---
 
+#### POST `/api/management/schedule/exam` 🔒 Protected
+Schedule a new exam.
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "exam_id": "ObjectId (required, references exam from question bank)",
+  "title": "string (required)",
+  "subject": "string (required)",
+  "semester": "string (required)",
+  "date": "2026-02-15T00:00:00Z (required, ISO 8601)",
+  "start_time": "10:00 (required)",
+  "end_time": "13:00 (required)",
+  "duration_min": 180 (required),
+  "total_marks": 100 (required)
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "exam_id": "507f1f77bcf86cd799439011",
+  "title": "End Semester Exam",
+  "subject": "Data Structures",
+  "semester": "4",
+  "date": "2026-02-15T00:00:00Z",
+  "start_time": "10:00",
+  "end_time": "13:00",
+  "duration_min": 180,
+  "total_marks": 100,
+  "created_by": "",
+  "created_at": "2026-02-12T10:30:00Z"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid request body or validation error
+- `401 Unauthorized`: Invalid/missing token
+- `500 Internal Server Error`: Failed to schedule exam
+
+---
+
+#### GET `/api/management/get/scheduled-exams/branch/{branch}/semester/{semester}`
+Get scheduled exams for a specific branch and semester.
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| branch | string | Yes | Branch code (e.g., `CSE`, `IT`) |
+| semester | string | Yes | Semester number as string (e.g., `4`) |
+
+**Response (200 OK):**
+```json
+[
+  {
+    "_id": "507f1f77bcf86cd799439011",
+    "exam_id": "507f1f77bcf86cd799439010",
+    "title": "End Semester Exam",
+    "subject": "Data Structures",
+    "semester": "4",
+    "date": "2026-02-15T00:00:00Z",
+    "start_time": "10:00",
+    "end_time": "13:00",
+    "duration_min": 180,
+    "total_marks": 100,
+    "created_by": "",
+    "created_at": "2026-02-12T10:30:00Z"
+  }
+]
+```
+
+**Error Responses:**
+- `500 Internal Server Error`: Failed to fetch exams or cursor error
+
+---
+
+#### GET `/api/management/get/exam-details/{scheduleID}` 🔒 Protected
+Get details of a specific scheduled exam.
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| scheduleID | string | Yes | MongoDB ObjectId of the scheduled exam |
+
+**Response (200 OK):**
+```json
+{
+  "title": "End Semester Exam",
+  "subject": "Data Structures",
+  "semester": "4",
+  "date": "2026-02-15T00:00:00Z",
+  "start_time": "10:00",
+  "end_time": "13:00",
+  "duration_min": 180,
+  "total_marks": 100,
+  "created_by": "",
+  "created_at": "2026-02-12T10:30:00Z"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid schedule ID
+- `401 Unauthorized`: Invalid/missing token
+- `404 Not Found`: Exam not found
+
+---
+
+#### DELETE `/api/management/delete/scheduled-exam/{scheduleID}` 🔒 Protected
+Delete a scheduled exam.
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| scheduleID | string | Yes | MongoDB ObjectId of the scheduled exam |
+
+**Response (200 OK):**
+```json
+{
+  "message": "Schedule deleted successfully"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid schedule ID
+- `401 Unauthorized`: Invalid/missing token
+- `404 Not Found`: Schedule not found
+- `500 Internal Server Error`: Failed to delete schedule
+
+---
+
+#### PUT `/api/management/update/exam-time/{scheduleID}` 🔒 Protected
+Update the start and end time of a scheduled exam.
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| scheduleID | string | Yes | MongoDB ObjectId of the scheduled exam |
+
+**Request Body:**
+```json
+{
+  "start_time": "11:00 (required)",
+  "end_time": "14:00 (required)"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Schedule time updated successfully"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid schedule ID, invalid request body, or validation error
+- `401 Unauthorized`: Invalid/missing token
+- `404 Not Found`: Schedule not found
+- `500 Internal Server Error`: Failed to update schedule time
+
+---
+
 ## 5. Question Service (question)
 
 **Port:** 8005  
@@ -1296,8 +1479,8 @@ Content-Type: application/json
 
 ---
 
-#### GET `/api/question/exam/subject/{subject}/semester/{semester}` 🔒 Protected
-Fetch exams by subject and semester.
+#### GET `/api/question/exam/both/subject/{subject}/semester/{semester}` 🔒 Protected
+Fetch exams containing both theory and MCQ questions by subject and semester.
 
 **Headers:**
 ```
@@ -1316,8 +1499,6 @@ Authorization: Bearer <access_token>
   "message": "Exams fetched successfully",
   "exams": [
     {
-      "_id": "ObjectId",
-      "user_id": "uuid-string",
       "subject": "network security",
       "semester": "7",
       "category": "BOTH",
@@ -1336,6 +1517,96 @@ Authorization: Bearer <access_token>
           "question": "What is HTTP?",
           "options": ["Protocol", "Language", "Database", "OS"],
           "correct_option": "Protocol"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Invalid/missing token
+- `500 Internal Server Error`: Database error or cursor error
+
+---
+
+#### GET `/api/question/exam/theory/subject/{subject}/semester/{semester}` 🔒 Protected
+Fetch theory-only exams by subject and semester.
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| subject | string | Yes | Subject name (e.g., "data structures") |
+| semester | string | Yes | Semester number (e.g., "4") |
+
+**Response (200 OK):**
+```json
+{
+  "message": "Exams fetched successfully",
+  "exams": [
+    {
+      "subject": "data structures",
+      "semester": "4",
+      "category": "THEORY",
+      "mcq_questions": [
+        {
+          "marks": 3,
+          "question": "Define a binary search tree."
+        },
+        {
+          "marks": 10,
+          "question": "Explain the time complexity of various sorting algorithms."
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Invalid/missing token
+- `500 Internal Server Error`: Database error or cursor error
+
+---
+
+#### GET `/api/question/exam/mcq/subject/{subject}/semester/{semester}` 🔒 Protected
+Fetch MCQ-only exams by subject and semester.
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| subject | string | Yes | Subject name (e.g., "operating systems") |
+| semester | string | Yes | Semester number (e.g., "5") |
+
+**Response (200 OK):**
+```json
+{
+  "message": "Exams fetched successfully",
+  "exams": [
+    {
+      "subject": "operating systems",
+      "semester": "5",
+      "category": "MCQ",
+      "mcq_questions": [
+        {
+          "question": "What is a deadlock?",
+          "options": ["Resource conflict", "Memory leak", "Buffer overflow", "Stack overflow"],
+          "correct_option": "Resource conflict"
+        },
+        {
+          "question": "Which scheduling algorithm is non-preemptive?",
+          "options": ["Round Robin", "FCFS", "SJF Preemptive", "Priority Preemptive"],
+          "correct_option": "FCFS"
         }
       ]
     }
