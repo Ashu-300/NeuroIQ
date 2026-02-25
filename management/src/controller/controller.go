@@ -328,17 +328,16 @@ func ScheduleExam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	exam := models.ScheduleExam{
-		ExamID:      objectExamID,
-		Title:       req.Title,
-		Subject:     req.Subject,
-		Branch:      req.Branch,
-		Semester:    req.Semester,
-		Date:        req.Date,
-		StartTime:   req.StartTime,
-		EndTime:     req.EndTime,
-		DurationMin: req.DurationMin,
-		TotalMarks:  req.TotalMarks,
-		CreatedAt:   time.Now(),
+		ExamID:     objectExamID,
+		Title:      req.Title,
+		Subject:    req.Subject,
+		Branch:     req.Branch,
+		Semester:   req.Semester,
+		Date:       req.Date,
+		StartTime:  req.StartTime,
+		EndTime:    req.EndTime,
+		TotalMarks: req.TotalMarks,
+		CreatedAt:  time.Now(),
 	}
 
 	collection := db.GetExamScheduleCollection()

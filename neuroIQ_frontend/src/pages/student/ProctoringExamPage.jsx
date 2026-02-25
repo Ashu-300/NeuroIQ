@@ -32,12 +32,46 @@ const ProctoringExamPage = () => {
     sendFrame,
   } = useWebSocket(sessionId);
 
-  // Calculate initial time left based on server start time if available
+  // Calculate initial time left based on exam end_time
   const calculateInitialTimeLeft = () => {
-    const totalDuration = (exam?.duration || 120) * 60; // in seconds
+    // Prefer using end_time if available (scheduled exam window)
+    if (exam?.end_time) {
+      const endTime = new Date(exam.end_time).getTime();
+      const now = Date.now();
+      const remainingSeconds = Math.floor((endTime - now) / 1000);
+      console.log('Time calculation from end_time:', { endTime: exam.end_time, now, remainingSeconds });
+      
+      if (remainingSeconds <= 0) {
+        console.warn('Exam window has ended');
+        return 1; // Trigger auto-submit
+      }
+      return remainingSeconds;
+    }
+    
+    // Fallback: Use duration from exam object
+    const durationMinutes = exam?.duration;
+    console.log('Exam duration from state:', durationMinutes, 'exam object:', exam);
+    const totalDuration = (durationMinutes || 120) * 60; // in seconds
+    
     if (startTime) {
-      const elapsed = Math.floor((Date.now() - new Date(startTime).getTime()) / 1000);
-      return Math.max(0, totalDuration - elapsed);
+      const serverStartTime = new Date(startTime).getTime();
+      const now = Date.now();
+      const elapsed = Math.floor((now - serverStartTime) / 1000);
+      console.log('Time calculation from startTime:', { serverStartTime, now, elapsed, totalDuration, startTime });
+      
+      // If start time is in the future, use full duration
+      if (elapsed < 0) {
+        console.warn('Start time is in the future, using full duration');
+        return totalDuration;
+      }
+      
+      // If elapsed time exceeds duration, exam time is over
+      if (elapsed >= totalDuration) {
+        console.warn('Exam time has expired');
+        return 1;
+      }
+      
+      return totalDuration - elapsed;
     }
     return totalDuration;
   };
@@ -197,6 +231,31 @@ const ProctoringExamPage = () => {
     if (lastMessage) {
       try {
         const data = typeof lastMessage === 'string' ? JSON.parse(lastMessage) : lastMessage;
+        
+        // Handle violation message from proctoring service
+        if (data.violation_message) {
+          setViolations((prev) => [
+            ...prev,
+            { time: new Date().toISOString(), message: data.violation_message },
+          ]);
+          setToast({
+            show: true,
+            message: `Warning: ${data.violation_message}`,
+            type: 'error',
+          });
+        }
+        
+        // Handle auto-submit triggered by proctoring
+        if (data.auto_submit || data.status === 'auto_submit') {
+          setToast({
+            show: true,
+            message: data.message || 'Exam auto-submitted due to violations',
+            type: 'error',
+          });
+          handleAutoSubmit();
+        }
+        
+        // Legacy: handle type === 'violation' format
         if (data.type === 'violation') {
           setViolations((prev) => [
             ...prev,
@@ -218,17 +277,25 @@ const ProctoringExamPage = () => {
   useEffect(() => {
     if (!examStarted) return;
     
-    timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          handleAutoSubmit();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    // Add a small delay before starting timer to avoid race conditions
+    const startDelay = setTimeout(() => {
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          // Only auto-submit if time actually ran down (not on initial load)
+          if (prev <= 1 && prev > 0) {
+            handleAutoSubmit();
+            return 0;
+          }
+          if (prev <= 0) {
+            return 0; // Already submitted or invalid
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }, 1000); // 1 second delay before starting countdown
 
     return () => {
+      clearTimeout(startDelay);
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
@@ -277,11 +344,18 @@ const ProctoringExamPage = () => {
 
   // Fullscreen change handler
   useEffect(() => {
+    // Give a grace period after exam starts
+    let fullscreenTrackingEnabled = false;
+    const enableTracking = setTimeout(() => {
+      fullscreenTrackingEnabled = true;
+    }, 2000); // 2 second grace period
+
     const handleFullscreenChange = () => {
       const isCurrentlyFullscreen = !!document.fullscreenElement;
       setIsFullscreen(isCurrentlyFullscreen);
       
-      if (examStarted && !isCurrentlyFullscreen) {
+      // Only trigger violation after grace period and if exam has started
+      if (examStarted && !isCurrentlyFullscreen && fullscreenTrackingEnabled) {
         setShowFullscreenWarning(true);
         setViolations((prev) => [
           ...prev,
@@ -292,6 +366,7 @@ const ProctoringExamPage = () => {
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => {
+      clearTimeout(enableTracking);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
   }, [examStarted]);
@@ -300,8 +375,14 @@ const ProctoringExamPage = () => {
   useEffect(() => {
     if (!examStarted) return;
 
+    // Give a grace period after exam starts before tracking blur
+    let blurTrackingEnabled = false;
+    const enableBlurTracking = setTimeout(() => {
+      blurTrackingEnabled = true;
+    }, 3000); // 3 second grace period
+
     const handleVisibilityChange = () => {
-      if (document.hidden) {
+      if (document.hidden && blurTrackingEnabled) {
         setViolations((prev) => [
           ...prev,
           { time: new Date().toISOString(), message: 'Tab switched detected' },
@@ -315,15 +396,18 @@ const ProctoringExamPage = () => {
     };
 
     const handleWindowBlur = () => {
-      setViolations((prev) => [
-        ...prev,
-        { time: new Date().toISOString(), message: 'Window lost focus' },
-      ]);
-      setToast({
-        show: true,
-        message: 'Warning: Please stay on the exam window!',
-        type: 'error',
-      });
+      // Only track blur after grace period and if in fullscreen
+      if (blurTrackingEnabled && document.fullscreenElement) {
+        setViolations((prev) => [
+          ...prev,
+          { time: new Date().toISOString(), message: 'Window lost focus' },
+        ]);
+        setToast({
+          show: true,
+          message: 'Warning: Please stay on the exam window!',
+          type: 'error',
+        });
+      }
     };
 
     // Prevent keyboard shortcuts
@@ -361,6 +445,7 @@ const ProctoringExamPage = () => {
     document.addEventListener('contextmenu', handleContextMenu);
 
     return () => {
+      clearTimeout(enableBlurTracking);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleWindowBlur);
       document.removeEventListener('keydown', handleKeyDown);

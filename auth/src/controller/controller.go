@@ -150,23 +150,88 @@ func GetStudentProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	studentID := authData.UserID
-
-	if authData.Role == "student" {
-		http.Error(w, "Forbidden: You cannot access another student's profile", http.StatusForbidden)
+	// Only students can access their own profile
+	if authData.Role != "student" {
+		http.Error(w, "Forbidden: Only students can access this endpoint", http.StatusForbidden)
 		return
 	}
 
-	// 3. Fetch student from DB
-	student, err := repository.GetStudentByID(studentID)
+	// Fetch student from DB using user_id (FK)
+	student, err := repository.GetStudentByUserID(authData.UserID)
+	if err != nil {
+		http.Error(w, "Student profile not found", http.StatusNotFound)
+		return
+	}
+
+	// Return student wrapped in object for frontend consistency
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"student": student,
+	})
+}
+
+func UpdateStudentProfile(w http.ResponseWriter, r *http.Request) {
+	// 1. Get JWT claims from context
+	authData, ok := r.Context().Value(middleware.AuthKey).(middleware.AuthContext)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Only students can update their own profile
+	if authData.Role != "student" {
+		http.Error(w, "Forbidden: Only students can update their profile", http.StatusForbidden)
+		return
+	}
+
+	// Check if student profile exists
+	_, err := repository.GetStudentByUserID(authData.UserID)
 	if err != nil {
 		http.Error(w, "Student not found", http.StatusNotFound)
 		return
 	}
 
-	// 5. Return student
+	// 2. Decode request body
+	var studentUpdate dto.StudentRegisterDTO
+	if err := json.NewDecoder(r.Body).Decode(&studentUpdate); err != nil {
+		http.Error(w, "Failed to decode student update details", http.StatusBadRequest)
+		return
+	}
+
+	// 3. Validate incoming data
+	validate := validator.New()
+	if err := validate.Struct(&studentUpdate); err != nil {
+		http.Error(w, "Validation error: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	studentUpdateData := models.Student{
+		FirstName:    studentUpdate.FirstName,
+		LastName:     studentUpdate.LastName,
+		RollNumber:   studentUpdate.RollNumber,
+		EnrollmentNo: studentUpdate.EnrollmentNo,
+		Branch:       studentUpdate.Branch,
+		Semester:     studentUpdate.Semester,
+		Section:      studentUpdate.Section,
+		Email:        studentUpdate.Email,
+		Phone:        studentUpdate.Phone,
+		UserID:       authData.UserID, // Set UserID for WHERE clause
+		Active:       true,
+		UpdatedAt:    time.Now(),
+	}
+
+	// 4. Update student in DB (uses user_id in WHERE clause)
+	err = repository.UpdateStudent(authData.UserID, &studentUpdateData)
+	if err != nil {
+		http.Error(w, "Failed to update student profile", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(student)
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "Student profile updated successfully",
+	})
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {

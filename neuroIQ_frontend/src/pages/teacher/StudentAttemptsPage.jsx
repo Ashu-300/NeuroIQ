@@ -1,0 +1,360 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Card, Button, Modal } from '../../components/ui';
+import { getExamStudentsWithReports, getProctoringReport } from '../../api/proctoring.api';
+import { getScheduledExamDetails } from '../../api/management.api';
+
+const StudentAttemptsPage = () => {
+  const { examId } = useParams();
+  const navigate = useNavigate();
+  const [examDetails, setExamDetails] = useState(null);
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
+
+  useEffect(() => {
+    if (examId) {
+      fetchData();
+    }
+  }, [examId]);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch exam details and student attempts in parallel
+      const [examData, studentsData] = await Promise.all([
+        getScheduledExamDetails(examId).catch(() => null),
+        getExamStudentsWithReports(examId),
+      ]);
+
+      setExamDetails(examData);
+      setStudents(studentsData.students || []);
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewReport = async (sessionId) => {
+    try {
+      setReportLoading(true);
+      setShowReportModal(true);
+      const report = await getProctoringReport(sessionId);
+      setSelectedReport(report);
+    } catch (error) {
+      console.error('Failed to fetch report:', error);
+      setSelectedReport(null);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const formatDuration = (seconds) => {
+    if (!seconds) return 'N/A';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
+  };
+
+  const getSeverityColor = (severity) => {
+    switch (severity?.toLowerCase()) {
+      case 'critical': return 'bg-red-100 text-red-800';
+      case 'high': return 'bg-orange-100 text-orange-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'submitted': return 'bg-green-100 text-green-800';
+      case 'auto_submitted': return 'bg-orange-100 text-orange-800';
+      case 'active': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center text-gray-600 hover:text-gray-900 mb-2"
+          >
+            <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Student Attempts {examDetails?.exam_name && `- ${examDetails.exam_name}`}
+          </h1>
+          <p className="text-gray-500 mt-1">
+            View student proctoring reports and violation details
+          </p>
+        </div>
+        <Button onClick={fetchData} variant="secondary">
+          Refresh
+        </Button>
+      </div>
+
+      {/* Exam Info Card */}
+      {examDetails && (
+        <Card padding="md">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-sm text-gray-500">Subject</p>
+              <p className="font-medium">{examDetails.subject || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Branch</p>
+              <p className="font-medium">{examDetails.branch || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Semester</p>
+              <p className="font-medium">{examDetails.semester || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Total Students</p>
+              <p className="font-medium text-indigo-600">{students.length}</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Students List */}
+      {loading ? (
+        <Card>
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            <span className="ml-3 text-gray-600">Loading student attempts...</span>
+          </div>
+        </Card>
+      ) : students.length === 0 ? (
+        <Card>
+          <div className="text-center py-12">
+            <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197" />
+            </svg>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">No attempts yet</h3>
+            <p className="mt-2 text-gray-500">No students have attempted this exam yet.</p>
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Identity</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Warnings</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Violations</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {students.map((student) => {
+                  const report = student.proctoring_report;
+                  const hasReport = !!report;
+                  const violationCount = report?.violations?.length || student.violation_count || 0;
+                  
+                  return (
+                    <tr key={student.session_id} className="hover:bg-gray-50">
+                      <td className="px-4 py-4">
+                        <div className="text-sm font-medium text-gray-900 font-mono">
+                          {student.student_id?.slice(0, 12)}...
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(student.status)}`}>
+                          {student.status?.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-500">
+                        {student.start_time ? new Date(student.start_time).toLocaleString() : 'N/A'}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-500">
+                        {report ? formatDuration(report.duration_seconds) : 'N/A'}
+                      </td>
+                      <td className="px-4 py-4">
+                        {student.identity_verified ? (
+                          <span className="flex items-center text-green-600">
+                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            Verified
+                          </span>
+                        ) : (
+                          <span className="flex items-center text-red-600">
+                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                            Not Verified
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          student.warnings > 2 ? 'bg-red-100 text-red-800' :
+                          student.warnings > 0 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {student.warnings || 0}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          violationCount > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                        }`}>
+                          {violationCount}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleViewReport(student.session_id)}
+                            disabled={!hasReport && student.status === 'active'}
+                          >
+                            {hasReport ? 'View Report' : 'No Report'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            disabled={student.status === 'active'}
+                          >
+                            Evaluate
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Proctoring Report Modal */}
+      <Modal
+        isOpen={showReportModal}
+        onClose={() => { setShowReportModal(false); setSelectedReport(null); }}
+        title="Proctoring Report"
+        size="lg"
+      >
+        <div className="space-y-6">
+          {reportLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+              <span className="ml-3 text-gray-600">Loading report...</span>
+            </div>
+          ) : selectedReport ? (
+            <>
+              {/* Report Summary */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="text-xs text-gray-500 uppercase">Status</p>
+                  <span className={`px-2 py-1 text-sm rounded-full ${getStatusColor(selectedReport.status)}`}>
+                    {selectedReport.status?.replace('_', ' ')}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase">Duration</p>
+                  <p className="font-medium">{formatDuration(selectedReport.duration_seconds)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase">Warnings</p>
+                  <p className="font-medium text-orange-600">{selectedReport.total_warnings}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase">Identity</p>
+                  <p className={`font-medium ${selectedReport.identity_verified ? 'text-green-600' : 'text-red-600'}`}>
+                    {selectedReport.identity_verified ? 'Verified' : 'Not Verified'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Time Info */}
+              <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
+                <div>
+                  <p className="text-sm text-gray-500">Start Time</p>
+                  <p className="font-medium">
+                    {selectedReport.start_time ? new Date(selectedReport.start_time).toLocaleString() : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">End Time</p>
+                  <p className="font-medium">
+                    {selectedReport.end_time ? new Date(selectedReport.end_time).toLocaleString() : 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Violations List */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">
+                  Violations ({selectedReport.violations?.length || 0})
+                </h4>
+                {selectedReport.violations?.length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {selectedReport.violations.map((violation, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`px-2 py-1 text-xs rounded-full ${getSeverityColor(violation.severity)}`}>
+                            {violation.severity}
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            {violation.violation_type?.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {violation.timestamp ? new Date(violation.timestamp).toLocaleTimeString() : ''}
+                          {violation.duration_seconds && ` (${violation.duration_seconds.toFixed(1)}s)`}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                    <svg className="mx-auto h-12 w-12 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="mt-2">No violations detected</p>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No report available for this session.
+            </div>
+          )}
+
+          <div className="flex justify-end pt-4 border-t">
+            <Button onClick={() => { setShowReportModal(false); setSelectedReport(null); }}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+};
+
+export default StudentAttemptsPage;

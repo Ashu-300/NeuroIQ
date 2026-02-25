@@ -106,22 +106,27 @@ const IdentityVerificationPage = () => {
       }, 1000);
     } catch (err) {
       console.error('Exam start error:', err);
-      // If API fails, still proceed to exam (for development/demo)
+      
+      // Check if exam was already submitted (409 Conflict)
+      if (err.response?.status === 409) {
+        setToast({
+          show: true,
+          message: err.response?.data?.detail || 'You have already submitted this exam.',
+          type: 'error',
+        });
+        // Navigate back to exams list after showing message
+        setTimeout(() => {
+          navigate('/student/exams');
+        }, 3000);
+        return;
+      }
+      
+      // Show error for other failures
       setToast({
         show: true,
-        message: 'Proceeding to exam...',
-        type: 'success',
+        message: err.response?.data?.detail || err.message || 'Failed to start exam. Please try again.',
+        type: 'error',
       });
-      setTimeout(() => {
-        navigate('/student/proctoring-exam', {
-          state: {
-            exam,
-            session_id: `session_${Date.now()}`,
-            start_time: new Date().toISOString(),
-            faceImage,
-          },
-        });
-      }, 1000);
     } finally {
       setIsVerifying(false);
     }

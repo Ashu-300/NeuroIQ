@@ -100,6 +100,27 @@ export const logout = async () => {
   return response.data;
 };
 
+/**
+ * Get student profile (for authenticated students)
+ * GET /get/student
+ * Response: Student profile data
+ */
+export const getStudentProfile = async () => {
+  const response = await authApi.get('/api/auth/get/student');
+  return response.data;
+};
+
+/**
+ * Update student profile (for authenticated students)
+ * PUT /update/student
+ * Request: { first_name, last_name, roll_number, enrollment_no, branch, semester, section, phone }
+ * Response: { message: string }
+ */
+export const updateStudentProfile = async (studentData) => {
+  const response = await authApi.put('/api/auth/update/student', studentData);
+  return response.data;
+};
+
 export default {
   signup,
   login,
@@ -110,4 +131,6 @@ export default {
   getUser,
   updateProfile,
   logout,
+  getStudentProfile,
+  updateStudentProfile,
 };

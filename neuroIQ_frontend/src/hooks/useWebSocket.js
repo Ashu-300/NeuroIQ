@@ -20,19 +20,17 @@ export const useWebSocket = (sessionId) => {
 
     try {
       const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+      
+      // Build WebSocket URL with session_id as PATH parameter (not query param)
+      // Backend expects: /ws/proctor/{session_id}
       let wsUrl = WS_PROCTORING_URL;
-
-      const params = new URLSearchParams();
       if (sessionId) {
-        params.append('session_id', sessionId);
+        wsUrl = `${WS_PROCTORING_URL}/${sessionId}`;
       }
+      
+      // Add token as query param
       if (token) {
-        params.append('token', token);
-      }
-
-      const queryString = params.toString();
-      if (queryString) {
-        wsUrl = `${WS_PROCTORING_URL}?${queryString}`;
+        wsUrl = `${wsUrl}?token=${encodeURIComponent(token)}`;
       }
       
       wsRef.current = new WebSocket(wsUrl);

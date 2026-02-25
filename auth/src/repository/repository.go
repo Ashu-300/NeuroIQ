@@ -3,8 +3,8 @@ package repository
 import (
 	"time"
 
-	"auth/src/models"
 	"auth/src/db"
+	"auth/src/models"
 
 	"github.com/google/uuid"
 )
@@ -30,7 +30,6 @@ func CreateUser(u *models.User) error {
 	_, err := db.DB.NamedExec(query, u)
 	return err
 }
-
 
 func GetUserByEmail(email string) (*models.User, error) {
 	var user models.User
@@ -71,8 +70,6 @@ func UpdateUser(u *models.User) error {
 	_, err := db.DB.NamedExec(query, u)
 	return err
 }
-
-
 
 // CreateStudent inserts a new student into the database
 func CreateStudent(s *models.Student) error {
@@ -147,6 +144,19 @@ func GetStudentByID(id string) (*models.Student, error) {
 	return &student, nil
 }
 
+// GetStudentByUserID fetches a student using the user_id (FK to users table)
+func GetStudentByUserID(userID string) (*models.Student, error) {
+	var student models.Student
+
+	query := `SELECT * FROM students WHERE user_id = $1 LIMIT 1`
+
+	err := db.DB.Get(&student, query, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &student, nil
+}
 
 func GetStudentsByPrefixBranchSemester(prefix string, branch string, semester int) ([]models.Student, error) {
 	var students []models.Student
@@ -166,4 +176,27 @@ func GetStudentsByPrefixBranchSemester(prefix string, branch string, semester in
 	}
 
 	return students, nil
+}
+
+func UpdateStudent(id string, s *models.Student) error {
+	query := `
+		UPDATE students
+		SET
+			first_name = :first_name,
+			last_name = :last_name,
+			roll_number = :roll_number,
+			enrollment_no = :enrollment_no,
+			branch = :branch,
+			semester = :semester,
+			section = :section,
+			email = :email,
+			phone = :phone,
+			active = :active,
+			updated_at = :updated_at
+		WHERE user_id = :user_id
+	
+	`
+
+	_, err := db.DB.NamedExec(query, s)
+	return err
 }

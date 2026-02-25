@@ -30,7 +30,6 @@ const ExamListPage = () => {
     date: '',
     start_time: '',
     end_time: '',
-    duration_min: '',
     total_marks: '',
   });
 
@@ -45,7 +44,6 @@ const ExamListPage = () => {
       date: '',
       start_time: '',
       end_time: '',
-      duration_min: '',
       total_marks: String(exam.totalMarks),
     });
     setShowScheduleModal(true);
@@ -257,7 +255,7 @@ const ExamListPage = () => {
     // Validation
     if (!scheduleForm.exam_id || !scheduleForm.title || !scheduleForm.subject ||  !scheduleForm.branch ||  !scheduleForm.semester || 
         !scheduleForm.date || !scheduleForm.start_time || !scheduleForm.end_time || 
-        !scheduleForm.duration_min || !scheduleForm.total_marks) {
+        !scheduleForm.total_marks) {
       setScheduleError('All fields are required');
       return;
     }
@@ -273,7 +271,6 @@ const ExamListPage = () => {
         date: new Date(scheduleForm.date).toISOString(),
         start_time: scheduleForm.start_time,
         end_time: scheduleForm.end_time,
-        duration_min: parseInt(scheduleForm.duration_min, 10),
         total_marks: parseInt(scheduleForm.total_marks, 10),
       };
       
@@ -288,7 +285,6 @@ const ExamListPage = () => {
         date: '',
         start_time: '',
         end_time: '',
-        duration_min: '',
         total_marks: '',
       });
       setTimeout(() => {
@@ -747,25 +743,14 @@ const ExamListPage = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes) *</label>
-                  <Input
-                    type="number"
-                    placeholder="e.g., 180"
-                    value={scheduleForm.duration_min}
-                    onChange={(e) => setScheduleForm({ ...scheduleForm, duration_min: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Total Marks *</label>
-                  <Input
-                    type="number"
-                    placeholder="e.g., 100"
-                    value={scheduleForm.total_marks}
-                    onChange={(e) => setScheduleForm({ ...scheduleForm, total_marks: e.target.value })}
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Total Marks *</label>
+                <Input
+                  type="number"
+                  placeholder="e.g., 100"
+                  value={scheduleForm.total_marks}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, total_marks: e.target.value })}
+                />
               </div>
 
               {/* Modal Footer */}

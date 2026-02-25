@@ -81,3 +81,4 @@ type StudentRegisterDTO struct {
 
 	// UserID       string `json:"user_id" validate:"required"` // FK: user must exist before creating student
 }
+

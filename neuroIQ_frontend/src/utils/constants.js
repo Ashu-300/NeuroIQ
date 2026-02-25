@@ -39,3 +39,37 @@ export const PAGINATION = {
   DEFAULT_PAGE: 1,
   DEFAULT_LIMIT: 10,
 };
+
+// Branch codes - must match backend validation: oneof=CSE IT ECE MECH CIVIL EE EC
+export const BRANCHES = [
+  { value: '', label: 'Select Branch' },
+  { value: 'CSE', label: 'CSE' },
+  { value: 'IT', label: 'IT' },
+  { value: 'ECE', label: 'ECE' },
+  { value: 'EE', label: 'EE' },
+  { value: 'EC', label: 'EC' },
+  { value: 'MECH', label: 'MECH' },
+  { value: 'CIVIL', label: 'CIVIL' },
+];
+
+// Semester options
+export const SEMESTERS = [
+  { value: '', label: 'Select Semester' },
+  { value: '1', label: 'Semester 1' },
+  { value: '2', label: 'Semester 2' },
+  { value: '3', label: 'Semester 3' },
+  { value: '4', label: 'Semester 4' },
+  { value: '5', label: 'Semester 5' },
+  { value: '6', label: 'Semester 6' },
+  { value: '7', label: 'Semester 7' },
+  { value: '8', label: 'Semester 8' },
+];
+
+// Section options
+export const SECTIONS = [
+  { value: '', label: 'Select Section (Optional)' },
+  { value: 'A', label: 'Section A' },
+  { value: 'B', label: 'Section B' },
+  { value: 'C', label: 'Section C' },
+  { value: 'D', label: 'Section D' },
+];

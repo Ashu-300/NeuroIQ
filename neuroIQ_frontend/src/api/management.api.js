@@ -104,8 +104,8 @@ export const getSeatingArrangement = async (examId) => {
 /**
  * Schedule a new exam
  * POST /api/management/schedule/exam
- * Request: { exam_id, title, subject, semester, date, start_time, end_time, duration_min, total_marks }
- * Response: { exam_id, title, subject, semester, date, start_time, end_time, duration_min, total_marks, created_by, created_at }
+ * Request: { exam_id, title, subject, branch, semester, date, start_time, end_time, total_marks }
+ * Response: { exam_id, title, subject, branch, semester, date, start_time, end_time, total_marks, created_at }
  */
 export const scheduleExam = async (examData) => {
   const response = await managementApi.post('/api/management/schedule/exam', examData);
@@ -115,7 +115,7 @@ export const scheduleExam = async (examData) => {
 /**
  * Get scheduled exams for a specific branch and semester
  * GET /api/management/get/scheduled-exams/branch/{branch}/semester/{semester}
- * Response: [{ exam_id, title, subject, semester, date, start_time, end_time, duration_min, total_marks, created_by, created_at }]
+ * Response: [{ exam_id, title, subject, branch, semester, date, start_time, end_time, total_marks, created_at }]
  */
 export const getScheduledExams = async (branch, semester) => {
   const response = await managementApi.get(`/api/management/get/scheduled-exams/branch/${encodeURIComponent(branch)}/semester/${encodeURIComponent(semester)}`);
@@ -125,7 +125,7 @@ export const getScheduledExams = async (branch, semester) => {
 /**
  * Get details of a specific scheduled exam
  * GET /api/management/get/exam-details/{scheduleID}
- * Response: { exam_id, title, subject, semester, date, start_time, end_time, duration_min, total_marks, created_by, created_at }
+ * Response: { exam_id, title, subject, branch, semester, date, start_time, end_time, total_marks, created_at }
  */
 export const getScheduledExamDetails = async (scheduleId) => {
   const response = await managementApi.get(`/api/management/get/exam-details/${scheduleId}`);

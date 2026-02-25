@@ -118,6 +118,46 @@ export const getExamReport = async (sessionId) => {
   return response.data;
 };
 
+/**
+ * Get students who attempted an exam
+ * GET /api/proctoring/exam/{exam_id}/students
+ * Response: { exam_id, total_students, students: [{ session_id, student_id, status, start_time, end_time, identity_verified, evaluation_status }] }
+ */
+export const getExamStudents = async (examId) => {
+  const response = await proctoringApi.get(`/api/proctoring/exam/${examId}/students`);
+  return response.data;
+};
+
+/**
+ * Get students with full proctoring reports for an exam
+ * GET /api/proctoring/exam/{exam_id}/students/reports
+ * Response: { exam_id, total_students, students: [{ session_id, student_id, status, proctoring_report }] }
+ */
+export const getExamStudentsWithReports = async (examId) => {
+  const response = await proctoringApi.get(`/api/proctoring/exam/${examId}/students/reports`);
+  return response.data;
+};
+
+/**
+ * Get proctoring report for a specific session
+ * GET /api/proctoring/exam/report/{session_id}
+ * Response: { session_id, student_id, exam_id, start_time, end_time, duration_seconds, status, total_warnings, violations, identity_verified }
+ */
+export const getProctoringReport = async (sessionId) => {
+  const response = await proctoringApi.get(`/api/proctoring/exam/report/${sessionId}`);
+  return response.data;
+};
+
+/**
+ * Check student's own status for a specific exam
+ * GET /api/proctoring/exam/{exam_id}/my-status
+ * Response: { exam_id, has_session, session_id?, status?, start_time?, can_attempt, message? }
+ */
+export const getMyExamStatus = async (examId) => {
+  const response = await proctoringApi.get(`/api/proctoring/exam/${examId}/my-status`);
+  return response.data;
+};
+
 export default {
   getStudentExams,
   getExamQuestions,
@@ -127,4 +167,8 @@ export default {
   sendProctoringFrame,
   submitExam,
   getExamReport,
+  getExamStudents,
+  getExamStudentsWithReports,
+  getProctoringReport,
+  getMyExamStatus,
 };

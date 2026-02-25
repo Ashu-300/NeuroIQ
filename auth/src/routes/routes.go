@@ -17,9 +17,10 @@ func SetuAuthRoutes() chi.Router {
 	router.Group(func (protected chi.Router){
 		protected.Use(middleware.AuthMiddleware)
 		protected.Post("/register/student" , controller.RegisterStudent)
+		protected.Get("/get/student" , controller.GetStudentProfile)
+		protected.Put("/update/student" , controller.UpdateStudentProfile)
 		protected.Get("/get/user" , controller.GetUser)
 		protected.Put("/update" , controller.UpdateUser)
-		protected.Get("/get/student" , controller.GetStudentProfile)
 	})
 
 	return router

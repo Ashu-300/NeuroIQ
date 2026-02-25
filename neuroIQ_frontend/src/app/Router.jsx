@@ -10,8 +10,8 @@ import { LoginPage, SignupPage } from '../pages/auth';
 
 // Dashboard Pages
 import { Dashboard as AdminDashboard, RoomManagementPage, SeatingGenerationPage, AttendancePage } from '../pages/admin';
-import { Dashboard as TeacherDashboard, UploadSyllabusPage, GenerateFromTextPage, GeneratedQuestionsPage, GeneratedMCQPage, QuestionBankPage, CreateExamPage, ExamListPage, ScheduledExamsPage } from '../pages/teacher';
-import { Dashboard as StudentDashboard, ExamLaunchPage, IdentityVerificationPage, ProctoringExamPage } from '../pages/student';
+import { Dashboard as TeacherDashboard, UploadSyllabusPage, GenerateFromTextPage, GeneratedQuestionsPage, GeneratedMCQPage, QuestionBankPage, CreateExamPage, ExamListPage, ScheduledExamsPage, StudentAttemptsPage } from '../pages/teacher';
+import { Dashboard as StudentDashboard, ExamLaunchPage, IdentityVerificationPage, ProctoringExamPage, StudentRegistrationPage } from '../pages/student';
 import ProfilePage from '../pages/ProfilePage';
 
 const Router = () => {
@@ -63,6 +63,7 @@ const Router = () => {
           <Route path="create-exam" element={<CreateExamPage />} />
           <Route path="exams" element={<ExamListPage />} />
           <Route path="scheduled-exams" element={<ScheduledExamsPage />} />
+          <Route path="exam/:examId/attempts" element={<StudentAttemptsPage />} />
         </Route>
 
         {/* Student Routes */}
@@ -78,6 +79,7 @@ const Router = () => {
         >
           <Route index element={<Navigate to="/student/dashboard" replace />} />
           <Route path="dashboard" element={<StudentDashboard />} />
+          <Route path="registration" element={<StudentRegistrationPage />} />
           <Route path="exams" element={<ExamLaunchPage />} />
           <Route path="verify-identity" element={<IdentityVerificationPage />} />
           <Route path="proctoring-exam" element={<ProctoringExamPage />} />

@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getScheduledExams } from '../../api/management.api';
+import { getMyExamStatus } from '../../api/proctoring.api';
 import { Button, Card, CardTitle, Loader, Select } from '../../components/ui';
 import { EmptyState } from '../../components/feedback';
 
 const ExamLaunchPage = () => {
   const navigate = useNavigate();
   const [exams, setExams] = useState([]);
+  const [examStatuses, setExamStatuses] = useState({}); // exam_id -> { can_attempt, status, message }
   const [isLoading, setIsLoading] = useState(true);
   const [selectedExam, setSelectedExam] = useState(null);
   const [studentProfile, setStudentProfile] = useState(null);
@@ -53,6 +55,9 @@ const ExamLaunchPage = () => {
         const endDateTime = new Date(examDate);
         endDateTime.setHours(endHour, endMin, 0);
 
+        // Calculate duration from start and end times
+        const durationMinutes = Math.floor((endDateTime - startDateTime) / (1000 * 60));
+
         let status = 'upcoming';
         if (now >= startDateTime && now <= endDateTime) {
           status = 'live';
@@ -66,7 +71,7 @@ const ExamLaunchPage = () => {
           title: exam.title,
           subject: exam.subject,
           semester: exam.semester,
-          duration: exam.duration_min,
+          duration: durationMinutes > 0 ? durationMinutes : 120, // fallback to 120 if invalid
           total_marks: exam.total_marks,
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
@@ -85,6 +90,24 @@ const ExamLaunchPage = () => {
       });
       
       setExams(transformedExams);
+      
+      // Fetch submission status for each exam
+      const statusPromises = transformedExams.map(async (exam) => {
+        try {
+          const status = await getMyExamStatus(exam.id);
+          return { examId: exam.id, status };
+        } catch (err) {
+          console.error(`Failed to fetch status for exam ${exam.id}:`, err);
+          return { examId: exam.id, status: { can_attempt: true } };
+        }
+      });
+      
+      const statuses = await Promise.all(statusPromises);
+      const statusMap = {};
+      statuses.forEach(({ examId, status }) => {
+        statusMap[examId] = status;
+      });
+      setExamStatuses(statusMap);
     } catch (err) {
       console.error('Failed to fetch exams:', err);
       setExams([]);
@@ -107,7 +130,19 @@ const ExamLaunchPage = () => {
     navigate('/student/verify-identity', { state: { exam } });
   };
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, examStatus) => {
+    // Check if exam has been submitted
+    if (examStatus && !examStatus.can_attempt) {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+          <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          Submitted
+        </span>
+      );
+    }
+    
     const styles = {
       upcoming: 'bg-yellow-100 text-yellow-800',
       live: 'bg-green-100 text-green-800',
@@ -248,7 +283,7 @@ const ExamLaunchPage = () => {
                     <h3 className="font-semibold text-gray-900">{exam.title}</h3>
                     <p className="text-sm text-gray-500">{exam.subject}</p>
                   </div>
-                  {getStatusBadge(exam.status)}
+                  {getStatusBadge(exam.status, examStatuses[exam.id])}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -275,13 +310,18 @@ const ExamLaunchPage = () => {
                 </div>
 
                 <div className="pt-2">
-                  {exam.status === 'live' ? (
+                  {/* Check if exam already submitted */}
+                  {examStatuses[exam.id] && !examStatuses[exam.id].can_attempt ? (
+                    <Button variant="outline" fullWidth disabled>
+                      Already Submitted
+                    </Button>
+                  ) : exam.status === 'live' ? (
                     <Button fullWidth onClick={() => handleStartExam(exam)}>
-                      Start Exam
+                      {examStatuses[exam.id]?.has_session ? 'Continue Exam' : 'Start Exam'}
                     </Button>
                   ) : exam.status === 'completed' ? (
                     <Button variant="outline" fullWidth disabled>
-                      Completed
+                      Exam Window Closed
                     </Button>
                   ) : (
                     <Button variant="outline" fullWidth disabled>
