@@ -2,7 +2,15 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Button, Modal, Input, Select } from '../../components/ui';
 import { getScheduledExams, deleteScheduledExam, updateExamTime, getScheduledExamDetails } from '../../api/management.api';
-import { getExamStudents } from '../../api/proctoring.api';
+
+// Helper to extract ObjectID string from MongoDB extended JSON format or plain string
+const normalizeId = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (value.$oid) return value.$oid;
+  if (value.toString) return value.toString();
+  return String(value);
+};
 
 // Helper function to calculate duration in minutes from start and end times
 const calculateDurationMinutes = (startTime, endTime) => {
@@ -25,9 +33,6 @@ const ScheduledExamsPage = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showAttemptsModal, setShowAttemptsModal] = useState(false);
-  const [studentAttempts, setStudentAttempts] = useState([]);
-  const [attemptsLoading, setAttemptsLoading] = useState(false);
   const [updateForm, setUpdateForm] = useState({ date: '', start_time: '', end_time: '' });
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -120,22 +125,6 @@ const ScheduledExamsPage = () => {
   const handleDeleteClick = (exam) => {
     setSelectedExam(exam);
     setShowDeleteModal(true);
-  };
-
-  const handleViewAttempts = async (exam) => {
-    try {
-      setSelectedExam(exam);
-      setAttemptsLoading(true);
-      setShowAttemptsModal(true);
-      const examId = exam.exam_id || exam.id || exam._id;
-      const data = await getExamStudents(examId);
-      setStudentAttempts(data.students || []);
-    } catch (error) {
-      console.error('Failed to fetch student attempts:', error);
-      setStudentAttempts([]);
-    } finally {
-      setAttemptsLoading(false);
-    }
   };
 
   const handleDeleteConfirm = async () => {
@@ -305,13 +294,28 @@ const ScheduledExamsPage = () => {
                 <Button size="sm" variant="secondary" onClick={() => handleEditClick(exam)}>
                   Edit Time
                 </Button>
-                <Button size="sm" variant="primary" onClick={() => handleViewAttempts(exam)}>
-                  View Attempts
-                </Button>
                 <Button 
                   size="sm" 
                   variant="primary" 
-                  onClick={() => navigate(`/teacher/exam/${exam.exam_id || exam.id || exam._id}/attempts`)}
+                  onClick={() => {
+                    const scheduleId = normalizeId(exam._id) || normalizeId(exam.id);
+                    const questionBankId = normalizeId(exam.exam_id);
+                    // Store in localStorage for persistence across page refreshes
+                    if (scheduleId && questionBankId) {
+                      localStorage.setItem(`exam_ref_${scheduleId}`, JSON.stringify({
+                        question_bank_id: questionBankId,
+                        exam_title: exam.title || exam.exam_name || '',
+                        subject: exam.subject || '',
+                      }));
+                    }
+                    navigate(`/teacher/exam/${scheduleId}/attempts`, { 
+                      state: { 
+                        question_bank_id: questionBankId,
+                        exam_title: exam.title || exam.exam_name,
+                        subject: exam.subject,
+                      } 
+                    });
+                  }}
                 >
                   View Reports
                 </Button>
@@ -468,103 +472,6 @@ const ScheduledExamsPage = () => {
             </Button>
             <Button variant="danger" onClick={handleDeleteConfirm} loading={actionLoading}>
               Delete Exam
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Student Attempts Modal */}
-      <Modal
-        isOpen={showAttemptsModal}
-        onClose={() => { setShowAttemptsModal(false); setSelectedExam(null); setStudentAttempts([]); }}
-        title={`Student Attempts - ${selectedExam?.exam_name || selectedExam?.title || 'Exam'}`}
-      >
-        <div className="space-y-4">
-          {attemptsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-              <span className="ml-3 text-gray-600">Loading student attempts...</span>
-            </div>
-          ) : studentAttempts.length === 0 ? (
-            <div className="text-center py-8">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-              </svg>
-              <h3 className="mt-3 text-sm font-medium text-gray-900">No attempts yet</h3>
-              <p className="mt-1 text-sm text-gray-500">No students have attempted this exam yet.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="text-sm text-gray-600">
-                  Total Students: <span className="font-semibold text-gray-900">{studentAttempts.length}</span>
-                </p>
-              </div>
-              <div className="max-h-96 overflow-y-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student ID</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Time</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Identity</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Evaluation</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {studentAttempts.map((attempt) => (
-                      <tr key={attempt.session_id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-900 font-mono">
-                          {attempt.student_id?.slice(0, 8)}...
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            attempt.status === 'submitted' ? 'bg-green-100 text-green-800' :
-                            attempt.status === 'auto_submitted' ? 'bg-orange-100 text-orange-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {attempt.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-500">
-                          {attempt.start_time ? new Date(attempt.start_time).toLocaleString() : 'N/A'}
-                        </td>
-                        <td className="px-4 py-3">
-                          {attempt.identity_verified ? (
-                            <span className="text-green-600">✓ Verified</span>
-                          ) : (
-                            <span className="text-red-600">✗ Not Verified</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            attempt.evaluation_status === 'completed' ? 'bg-green-100 text-green-800' :
-                            attempt.evaluation_status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {attempt.evaluation_status || 'pending'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Button 
-                            size="sm" 
-                            variant="primary"
-                            disabled={attempt.status === 'active' || attempt.evaluation_status === 'completed'}
-                          >
-                            Evaluate
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-          <div className="flex justify-end pt-4 border-t">
-            <Button onClick={() => { setShowAttemptsModal(false); setSelectedExam(null); setStudentAttempts([]); }}>
-              Close
             </Button>
           </div>
         </div>

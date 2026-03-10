@@ -12,8 +12,9 @@ This document provides a comprehensive service-by-service backend layout, comple
 4. [Ingestion Service (ingestion)](#2-ingestion-service-ingestion)
 5. [LLM Service (llm)](#3-llm-service-llm)
 6. [Management Service (management)](#4-management-service-management)
-7. [Question Service (question)](#5-question-service-question)
-8. [Proctoring Service (proctoring)](#6-proctoring-service-proctoring)
+7. [Answer Service (answer)](#5-answer-service-answer)
+8. [Question Service (question)](#6-question-service-question)
+9. [Proctoring Service (proctoring)](#7-proctoring-service-proctoring)
 9. [WebSocket Implementation Notes](#websocket-implementation-notes)
 10. [Inter-service Contracts](#inter-service-contracts)
 11. [Deployment & Operations](#deployment--operations)
@@ -21,7 +22,7 @@ This document provides a comprehensive service-by-service backend layout, comple
 ---
 
 ## High-level Architecture
-NeuroIQ is a microservices platform comprised of specialized services: `auth`, `ingestion`, `llm`, `proctoring`, `question`, and `management`. Services communicate via HTTP and JWT-based auth. The `proctoring` service exposes a WebSocket for live AI proctoring.
+NeuroIQ is a microservices platform comprised of specialized services: `auth`, `ingestion`, `llm`, `answer`, `proctoring`, `question`, and `management`. Services communicate via HTTP and JWT-based auth. The `proctoring` service exposes a WebSocket for live AI proctoring.
 
 ```
 [Clients] <--HTTP/WebSocket--> [Proctoring (FastAPI + WS)]
@@ -1161,6 +1162,7 @@ Content-Type: application/json
   "question": "string (required)",
   "options": ["string", "string", "string", "string"] (required, 4 options),
   "correct_option": "string (required, must match one option)"
+  // `marks` field is not accepted; all MCQ questions are implicitly worth 1 mark.
 }
 ```
 
@@ -1330,7 +1332,7 @@ Content-Type: application/json
 ---
 
 #### POST `/api/question/exam/generate/mcq` 🔒 Protected
-Generate an MCQ exam from question sets.
+Generate an MCQ exam from question sets.  MCQ items carry a fixed weight of 1 mark; do not include a `marks` property.
 
 **Headers:**
 ```
@@ -1617,6 +1619,155 @@ Authorization: Bearer <access_token>
 **Error Responses:**
 - `401 Unauthorized`: Invalid/missing token
 - `500 Internal Server Error`: Database error or cursor error
+
+---
+
+## 6. Answer Service (answer)
+
+**Port:** 8006  
+**Purpose:** Handle submission storage and evaluation workflows (AI + manual) for both theory and MCQ exams.
+
+### Source Files
+- Routes: [answer/src/routes/routes.go](answer/src/routes/routes.go)
+- Controller: [answer/src/controller/controller.go](answer/src/controller/controller.go)
+- DTOs: [answer/src/dto/dto.go](answer/src/dto/dto.go)
+- Service: [answer/src/service/evaluation.go](answer/src/service/evaluation.go)
+- Models: [answer/src/models/models.go](answer/src/models/models.go)
+
+### Models
+
+#### MixedAnswer
+```json
+{
+  "question_id": "string (required)",
+  "question_text": "string",
+  "question_type": "THEORY | MCQ",
+  "max_marks": "integer (MCQ always 1)",
+  // theory fields
+  "answer_text": "string (for theory)",
+  // MCQ fields
+  "options": ["string", ...],
+  "selected_option": "string | number",
+  "correct_option": "string | number"
+}
+```
+
+#### ResultSummary
+```json
+{
+  "total_marks": "integer",
+  "obtained_marks": "integer",
+  "percentage": "number",
+  "grade": "string"
+}
+```
+
+### API Endpoints
+
+#### POST `/api/answer/mixed/submit` 🔒 Protected  
+Student submits mixed answers (theory + MCQ). MCQ questions must include `max_marks` = 1 (backend enforces).
+
+**Request Body:**
+```json
+{
+  "exam_id": "string",
+  "session_id": "string",
+  "subject": "string",
+  "semester": "string",
+  "exam_type": "string",
+  "mixed_answers": [ MixedAnswer ]
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Submission saved",
+  "submission_id": "ObjectId"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: validation error
+- `500 Internal Server Error`
+
+#### GET `/api/answer/exam/{exam_id}/student/{student_id}/submission` 🔒 Protected  
+Retrieve a specific student's submission.
+
+**Response (200 OK):**
+```json
+{
+  "_id": "507f1f...",
+  "exam_id": "...",
+  "student_id": "...",
+  "mixed_answers": [ MixedAnswer ],
+  "status": "SUBMITTED|EVALUATING|EVALUATED",
+  "result_summary": ResultSummary
+}
+```
+
+#### POST `/api/answer/mixed/submission/{id}/evaluate` 🔒 Protected  
+Trigger AI evaluation of entire submission.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Evaluation completed",
+  "status": "EVALUATED"
+}
+```
+
+#### POST `/api/answer/mixed/submission/{id}/question/evaluate` 🔒 Protected  
+Evaluate a single question manually or via AI.
+
+**Request Body:**
+```json
+{
+  "question_id": "string",
+  "mode": "ai | manual",
+  "obtained_marks": "integer (optional for ai)",
+  "feedback": "string (optional)"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Question evaluated"
+}
+```
+
+#### POST `/api/answer/mixed/submission/{id}/store-evaluation` 🔒 Protected  
+Persist manual/AI evaluations for all questions.
+
+**Request Body:**
+```json
+{
+  "evaluations": [
+    {
+      "question_id": "string",
+      "evaluation_mode": "ai | self",
+      "obtained_marks": "integer",
+      "feedback": "string"
+    }
+  ]
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Evaluation results stored",
+  "updated_count": 5,
+  "result_summary": ResultSummary
+}
+```
+
+#### (Additional retrieval endpoints omitted for brevity)
 
 ---
 

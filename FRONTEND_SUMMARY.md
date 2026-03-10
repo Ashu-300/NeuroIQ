@@ -179,15 +179,19 @@ src/pages/teacher/
 ├── GeneratedQuestionsPage.jsx
 ├── QuestionBankPage.jsx
 ├── CreateExamPage.jsx
-└── ExamListPage.jsx
+├── ExamListPage.jsx
+├── StudentAttemptsPage.jsx
+└── EvaluateSubmissionPage.jsx
 ```
 
 **Features**
 - Upload syllabus PDF
 - View AI-generated questions
 - Edit and save questions
-- Build exams from question bank
+- Build exams from question bank (MCQ items automatically count as 1 mark)
 - Manage created exams
+- Review student attempts and open evaluation interface
+- Evaluate submissions using AI or manual mode; MCQ answers are rendered with a fixed 1‑mark value and evaluation progress is tracked per question
 
 ---
 
@@ -273,7 +277,7 @@ src/features/question/
 
 **UI Behavior**
 - Render theory questions with marks
-- Render MCQs with options and correct answer
+- Render MCQs with options and correct answer (marks display hard‑coded to 1)
 - Inline editing with validation
 - Difficulty and category tags
 
@@ -290,8 +294,8 @@ src/features/exam/
 
 **UI Behavior**
 - Step-by-step exam creation
-- Select questions from bank
-- Total marks validation
+- Select questions from bank (MCQ selections automatically add one mark each to total)
+- Total marks validation (accounts for MCQ=1 rule)
 - Final preview before publish
 
 ---

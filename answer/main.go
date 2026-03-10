@@ -2,6 +2,8 @@ package main
 
 import (
 	"answer/src/db"
+	"answer/src/routes"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -14,12 +16,12 @@ import (
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("⚠️ Error loading .env file:", err)
+		log.Println("⚠️ No .env file found, using environment variables")
 	}
-	
+
 	db.MongoInit()
 
-	router := chi.NewRouter();
+	router := chi.NewRouter()
 
 	router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
@@ -30,11 +32,15 @@ func main() {
 		MaxAge:           300,
 	}))
 
+	// Mount answer routes
+	router.Mount("/api/answer", routes.SetupAuthRoutes())
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8006"
 	}
 
+	fmt.Printf("🚀 Answer service running on port %s\n", port)
 	err = http.ListenAndServe(":"+port, router)
 	if err != nil {
 		log.Fatal("⚠️ Error starting server:", err)

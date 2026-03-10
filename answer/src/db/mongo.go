@@ -31,4 +31,7 @@ func MongoInit() {
 
 	Client = client
 	fmt.Println("✅ Connected to MongoDB")
+
+	answerCollection = Client.Database("NeuroIQ_AnswerDB").Collection("answers")
+	evaluationCollection = Client.Database("NeuroIQ_AnswerDB").Collection("evaluations")
 }

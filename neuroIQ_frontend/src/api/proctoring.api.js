@@ -109,6 +109,17 @@ export const submitExam = async (sessionId) => {
 };
 
 /**
+ * End exam session explicitly from UI (uses same submit endpoint)
+ * POST /api/proctoring/submission/submit
+ */
+export const endExamSession = async (sessionId) => {
+  const response = await proctoringApi.post('/api/proctoring/submission/submit', {
+    session_id: sessionId,
+  });
+  return response.data;
+};
+
+/**
  * Get exam report
  * GET /api/proctoring/submission/report/{session_id}
  * Response: { session_id, student_id, exam_id, start_time, end_time, duration_seconds, status, total_warnings, violations, identity_verified }
@@ -166,6 +177,7 @@ export default {
   verifyIdentity,
   sendProctoringFrame,
   submitExam,
+  endExamSession,
   getExamReport,
   getExamStudents,
   getExamStudentsWithReports,

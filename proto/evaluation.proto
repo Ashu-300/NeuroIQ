@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package evaluation;
+
+option go_package = "answer/src/grpc/evaluation";
+
+// LLM Evaluation Service
+service EvaluationService {
+
+  // Evaluate a single theory answer
+  rpc EvaluateTheoryAnswer (TheoryAnswerRequest) returns (TheoryAnswerResponse);
+
+  // Evaluate a MCQ answer
+  rpc EvaluateMCQAnswer (MCQAnswerRequest) returns (MCQAnswerResponse);
+}
+
+/////////////////////////////
+// THEORY ANSWER MESSAGES
+/////////////////////////////
+
+message TheoryAnswerRequest {
+  string question_id = 1;
+  string question_text = 2;
+
+  string answer_text = 3;
+
+  int32 max_marks = 4;
+
+  // Optional fields useful for LLM grading
+  string subject = 5;
+  repeated string expected_keywords = 6;
+}
+
+message TheoryAnswerResponse {
+  string question_id = 1;
+
+  int32 obtained_marks = 2;
+
+  string feedback = 3;
+
+  bool success = 4;
+
+  string error_message = 5;
+}
+
+/////////////////////////////
+// MCQ ANSWER MESSAGES
+/////////////////////////////
+
+message MCQAnswerRequest {
+
+  string question_id = 1;
+
+  string question_text = 2;
+
+  repeated string options = 3;
+
+  string selected_option = 4;
+
+  string correct_option = 5;
+
+  int32 marks = 6;
+}
+
+message MCQAnswerResponse {
+
+  string question_id = 1;
+
+  bool is_correct = 2;
+
+  int32 obtained_marks = 3;
+
+  bool success = 4;
+
+  string error_message = 5;
+}

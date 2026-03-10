@@ -59,7 +59,7 @@ export const getQuestionById = async (questionId) => {
  * Request: {
  *   subject: string,
  *   semester: string,
- *   questions: [{ question_id?: string, question: string, marks: int }]
+ *   mcq_questions: [{ question_id: string, question: string, marks: int }]
  * }
  * Response: { exam_id: string, subject, semester, questions, total_marks, pdf_url?: string }
  */
@@ -74,7 +74,7 @@ export const generateTheoryExam = async (data) => {
  * Request: {
  *   subject: string,
  *   semester: string,
- *   questions: [{ question_id?: string, question: string, options: [], correct_option: int, marks: int }]
+ *   mcq_questions: [{ question_id: string, question: string, options: [], correct_option: string }]
  * }
  * Response: { exam_id: string, subject, semester, questions, total_marks }
  */
@@ -89,8 +89,8 @@ export const generateMCQExam = async (data) => {
  * Request: {
  *   subject: string,
  *   semester: string,
- *   theory_questions: [{ question: string, marks: int }],
- *   mcq_questions: [{ question: string, options: [], correct_option: string }]
+ *   theory_questions: [{ question_id: string, question: string, marks: int }],
+ *   mcq_questions: [{ question_id: string, question: string, options: [], correct_option: string }]
  * }
  * Response: { message: string, mongo_response: { InsertedID: string } }
  */

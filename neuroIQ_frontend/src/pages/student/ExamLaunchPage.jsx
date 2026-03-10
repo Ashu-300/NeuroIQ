@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getScheduledExams } from '../../api/management.api';
-import { getMyExamStatus } from '../../api/proctoring.api';
+import { getExamStatus, getMyExamStatus } from '../../api/proctoring.api';
 import { Button, Card, CardTitle, Loader, Select } from '../../components/ui';
 import { EmptyState } from '../../components/feedback';
+
+// LocalStorage key for caching submitted exams
+const SUBMITTED_EXAMS_KEY = 'neuroiq_submitted_exams';
 
 const ExamLaunchPage = () => {
   const navigate = useNavigate();
@@ -15,6 +18,69 @@ const ExamLaunchPage = () => {
   const [error, setError] = useState('');
   const [branch, setBranch] = useState('');
   const [semester, setSemester] = useState('');
+
+  // Get current student ID from localStorage
+  const getStudentId = useCallback(() => {
+    const storedProfile = localStorage.getItem('neuroiq_student_profile');
+    if (storedProfile) {
+      const profile = JSON.parse(storedProfile);
+      return profile._id || profile.id || profile.student_id;
+    }
+    // Fallback to auth token info
+    const authData = localStorage.getItem('neuroiq_auth');
+    if (authData) {
+      const auth = JSON.parse(authData);
+      return auth.userId || auth.user_id || auth.id;
+    }
+    return null;
+  }, []);
+
+  // Check if exam is submitted in localStorage cache (by student_id + exam_id)
+  const isExamSubmittedInCache = useCallback((examId) => {
+    const studentId = getStudentId();
+    if (!studentId || !examId) return false;
+    
+    try {
+      const submittedExams = JSON.parse(localStorage.getItem(SUBMITTED_EXAMS_KEY) || '{}');
+      const key = `${studentId}_${examId}`;
+      return submittedExams[key] === true;
+    } catch {
+      return false;
+    }
+  }, [getStudentId]);
+
+  // Mark exam as submitted in localStorage cache (by student_id + exam_id)
+  const markExamAsSubmittedInCache = useCallback((examId) => {
+    const studentId = getStudentId();
+    if (!studentId || !examId) return;
+    
+    try {
+      const submittedExams = JSON.parse(localStorage.getItem(SUBMITTED_EXAMS_KEY) || '{}');
+      const key = `${studentId}_${examId}`;
+      submittedExams[key] = true;
+      localStorage.setItem(SUBMITTED_EXAMS_KEY, JSON.stringify(submittedExams));
+    } catch (err) {
+      console.error('Failed to cache submitted exam:', err);
+    }
+  }, [getStudentId]);
+
+  const isSubmittedStatus = (statusValue) => {
+    const normalized = String(statusValue || '').toLowerCase();
+    return normalized === 'submitted' || normalized === 'auto_submitted' || normalized === 'terminated';
+  };
+
+  // Check if exam is submitted - combines API status with localStorage cache
+  const isExamSubmitted = useCallback((examId, examStatus) => {
+    // First check localStorage cache (student_id + exam_id)
+    if (isExamSubmittedInCache(examId)) {
+      return true;
+    }
+    
+    // Then check API status
+    if (!examStatus) return false;
+    if (examStatus.can_attempt === false) return true;
+    return isSubmittedStatus(examStatus.status);
+  }, [isExamSubmittedInCache]);
 
   useEffect(() => {
     const storedProfile = localStorage.getItem('neuroiq_student_profile');
@@ -42,9 +108,10 @@ const ExamLaunchPage = () => {
       // Transform the response to expected format and determine status
       const now = new Date();
       const transformedExams = (response || []).map((exam, idx) => {
-        // exam.exam_id -> question bank / proctoring exam id
-        // exam._id     -> scheduled exam record id
-        const proctorExamId = exam.exam_id || exam._id || `exam-${idx}`;
+        // exam.exam_id -> question bank exam id (for fetching questions)
+        // exam._id     -> scheduled exam record id (unique per scheduled instance)
+        const questionBankId = exam.exam_id || `exam-${idx}`;
+        const scheduleId = exam._id;
         const examDate = new Date(exam.date);
         const [startHour, startMin] = exam.start_time.split(':').map(Number);
         const [endHour, endMin] = exam.end_time.split(':').map(Number);
@@ -66,8 +133,9 @@ const ExamLaunchPage = () => {
         }
 
         return {
-          id: proctorExamId,
-          schedule_id: exam._id,
+          id: scheduleId, // Use schedule_id for proctoring session tracking (unique per scheduled instance)
+          question_bank_id: questionBankId, // Use for fetching questions from question service
+          schedule_id: scheduleId,
           title: exam.title,
           subject: exam.subject,
           semester: exam.semester,
@@ -91,13 +159,101 @@ const ExamLaunchPage = () => {
       
       setExams(transformedExams);
       
-      // Fetch submission status for each exam
+      // Fetch submission status for each exam using student_id + exam_id
+      const studentId = getStudentId();
       const statusPromises = transformedExams.map(async (exam) => {
+        const examId = exam.schedule_id || exam.id;
+        
+        // First check localStorage cache for this student + exam combination
+        if (isExamSubmittedInCache(examId)) {
+          return {
+            examId: exam.id,
+            status: {
+              has_session: true,
+              can_attempt: false,
+              status: 'submitted',
+              message: 'Exam already submitted',
+              cached: true,
+            },
+          };
+        }
+        
         try {
-          const status = await getMyExamStatus(exam.id);
-          return { examId: exam.id, status };
+          // exam.id/schedule_id is the scheduled exam session identifier used by backend APIs.
+          // The API uses student_id from auth token + exam_id to check status
+          const myStatus = await getMyExamStatus(examId);
+
+          // If status indicates submitted, cache it locally for future checks
+          if (isSubmittedStatus(myStatus?.status) || myStatus?.can_attempt === false) {
+            markExamAsSubmittedInCache(examId);
+            return {
+              examId: exam.id,
+              status: {
+                ...myStatus,
+                can_attempt: false,
+              },
+            };
+          }
+
+          // If a session already exists, verify latest session state using session_id.
+          if (myStatus?.session_id) {
+            try {
+              const sessionStatus = await getExamStatus(myStatus.session_id);
+              
+              // If session is submitted, cache it and mark as not attemptable
+              if (isSubmittedStatus(sessionStatus?.status)) {
+                markExamAsSubmittedInCache(examId);
+                return {
+                  examId: exam.id,
+                  status: {
+                    ...myStatus,
+                    status: sessionStatus.status,
+                    can_attempt: false,
+                  },
+                };
+              }
+              
+              return {
+                examId: exam.id,
+                status: {
+                  ...myStatus,
+                  status: sessionStatus?.status || myStatus.status,
+                  can_attempt: myStatus.can_attempt,
+                },
+              };
+            } catch (sessionErr) {
+              console.error(`Failed to fetch session status for ${myStatus.session_id}:`, sessionErr);
+              // If we can't verify session status but we have a session, be conservative
+              // Don't allow attempt if there's an existing session we can't verify
+              if (myStatus?.has_session) {
+                return {
+                  examId: exam.id,
+                  status: {
+                    ...myStatus,
+                    can_attempt: false,
+                    message: 'Unable to verify exam status. Please try again.',
+                  },
+                };
+              }
+            }
+          }
+
+          return { examId: exam.id, status: myStatus };
         } catch (err) {
           console.error(`Failed to fetch status for exam ${exam.id}:`, err);
+          // On error, check cache again - if submitted there, block attempt
+          if (isExamSubmittedInCache(examId)) {
+            return {
+              examId: exam.id,
+              status: {
+                can_attempt: false,
+                status: 'submitted',
+                message: 'Exam already submitted',
+                cached: true,
+              },
+            };
+          }
+          // Otherwise allow attempt (API might be temporarily down)
           return { examId: exam.id, status: { can_attempt: true } };
         }
       });
@@ -130,9 +286,9 @@ const ExamLaunchPage = () => {
     navigate('/student/verify-identity', { state: { exam } });
   };
 
-  const getStatusBadge = (status, examStatus) => {
-    // Check if exam has been submitted
-    if (examStatus && !examStatus.can_attempt) {
+  const getStatusBadge = (status, examId, examStatus) => {
+    // Check if exam has been submitted (using both localStorage cache and API status)
+    if (isExamSubmitted(examId, examStatus)) {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
           <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -283,7 +439,7 @@ const ExamLaunchPage = () => {
                     <h3 className="font-semibold text-gray-900">{exam.title}</h3>
                     <p className="text-sm text-gray-500">{exam.subject}</p>
                   </div>
-                  {getStatusBadge(exam.status, examStatuses[exam.id])}
+                  {getStatusBadge(exam.status, exam.id, examStatuses[exam.id])}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -310,10 +466,10 @@ const ExamLaunchPage = () => {
                 </div>
 
                 <div className="pt-2">
-                  {/* Check if exam already submitted */}
-                  {examStatuses[exam.id] && !examStatuses[exam.id].can_attempt ? (
+                  {/* Check if exam already submitted using student_id + exam_id */}
+                  {isExamSubmitted(exam.id, examStatuses[exam.id]) ? (
                     <Button variant="outline" fullWidth disabled>
-                      Already Submitted
+                      Submitted
                     </Button>
                   ) : exam.status === 'live' ? (
                     <Button fullWidth onClick={() => handleStartExam(exam)}>

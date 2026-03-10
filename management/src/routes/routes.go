@@ -22,7 +22,7 @@ func SetupManagementRoutes() chi.Router{
 		r.Post("/generate-seating-arrangement" , controller.GenerateSeatingArrangement)
 		// schedule exam
 		r.Post("/schedule/exam" , controller.ScheduleExam)
-		r.Get("/get/exam-details/{scheduleID}" , controller.GetExamDetails)
+		r.Get("/get/exam-details/{scheduleID}" , controller.GetExamDetails) // need
 		r.Delete("/delete/scheduled-exam/{scheduleID}" , controller.DeleteScheduledExam)
 		r.Put("/update/exam-time/{scheduleID}", controller.UpdateExamTime)
 	})

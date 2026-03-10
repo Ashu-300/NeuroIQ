@@ -11,6 +11,7 @@ const examRoutes = require('./routes/examRoutes');
 const proctorRoutes = require('./routes/proctorRoutes');
 const submissionRoutes = require('./routes/submissionRoutes');
 const { setupWebSocket } = require('./websocket/proctoring');
+const { initializeFaceApi } = require('./proctoring/faceApiSetup');
 
 /**
  * Create and configure Express application
@@ -69,6 +70,15 @@ function createApp() {
         try {
             // Connect to MongoDB
             await connectDB();
+
+            // Initialize Face API for proctoring
+            logger.info('Initializing Face API...');
+            const faceApiReady = await initializeFaceApi();
+            if (faceApiReady) {
+                logger.info('Face API initialized successfully');
+            } else {
+                logger.warning('Face API initialization failed, using fallback detection');
+            }
 
             server.listen(settings.SERVICE_PORT, () => {
                 logger.info(`Starting ${settings.SERVICE_NAME} service on port ${settings.SERVICE_PORT}`);

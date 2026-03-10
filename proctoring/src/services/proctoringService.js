@@ -44,7 +44,12 @@ async function verifyInitialIdentity(sessionId, frameBase64) {
         return { verified: false, error: 'Failed to decode frame' };
     }
 
-    const { faces, faceCount } = detectFaces(image);
+    // Use async face detection
+    const { faces, faceCount, cameraHidden } = await detectFaces(image);
+
+    if (cameraHidden) {
+        return { verified: false, error: 'Camera appears to be hidden or blocked' };
+    }
 
     if (faceCount === 0) {
         return { verified: false, error: 'No face detected' };
@@ -77,12 +82,24 @@ async function processProctoringFrame(sessionId, frameBase64) {
     const violationsDetected = [];
     let gazeData = null;
     let poseData = null;
+    let landmarks = null;
 
-    // Face detection check
-    const { faces, faceCount } = detectFaces(image);
-    logger.info(`Session ${sessionId}: Face count = ${faceCount}`);
+    // Face detection check (now async)
+    const faceResult = await detectFaces(image);
+    const { faces, faceCount, cameraHidden } = faceResult;
+    landmarks = faceResult.landmarks;
+    
+    logger.info(`Session ${sessionId}: Face count = ${faceCount}, cameraHidden = ${cameraHidden}`);
 
-    if (faceCount === 0) {
+    // Check for camera hidden/blocked
+    if (cameraHidden) {
+        logger.warning(`Session ${sessionId}: Camera appears to be hidden/blocked`);
+        const violation = checkViolation(engine, ViolationTypeEnum.NO_FACE, true, currentTime);
+        if (violation) {
+            violation.metadata = { reason: 'camera_hidden' };
+            violationsDetected.push(violation);
+        }
+    } else if (faceCount === 0) {
         logger.info(`Session ${sessionId}: No face detected, checking violation rules...`);
         const violation = checkViolation(engine, ViolationTypeEnum.NO_FACE, true, currentTime);
         if (violation) {
@@ -99,16 +116,19 @@ async function processProctoringFrame(sessionId, frameBase64) {
         checkViolation(engine, ViolationTypeEnum.NO_FACE, false, currentTime);
         checkViolation(engine, ViolationTypeEnum.MULTIPLE_FACES, false, currentTime);
 
-        // Check eye tracking
-        const eyeResult = detectEyesLookingAway(image);
+        // Get landmarks from first face
+        const faceLandmarks = landmarks && landmarks.length > 0 ? landmarks[0] : null;
+
+        // Check eye tracking with landmarks
+        const eyeResult = detectEyesLookingAway(image, faceLandmarks);
         gazeData = eyeResult.gazeData;
         const violation1 = checkViolation(engine, ViolationTypeEnum.LOOKING_AWAY, eyeResult.lookingAway, currentTime);
         if (violation1) {
             violationsDetected.push(violation1);
         }
 
-        // Check head pose
-        const poseResult = estimateHeadPose(image);
+        // Check head pose with landmarks
+        const poseResult = estimateHeadPose(image, faceLandmarks);
         poseData = poseResult.poseData;
         const violation2 = checkViolation(engine, ViolationTypeEnum.HEAD_TURN, poseResult.headTurned, currentTime);
         if (violation2) {
@@ -134,6 +154,7 @@ async function processProctoringFrame(sessionId, frameBase64) {
                 metadata: {
                     gaze_data: gazeData,
                     pose_data: poseData,
+                    ...violationData.metadata,
                 },
             });
 

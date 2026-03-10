@@ -39,6 +39,11 @@ func RegisterTheoryQuestionSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	for i := range questions.QuestionList {
+		questions.QuestionList[i].ID = primitive.NewObjectID()
+	}
+
+
 	questionList := models.TheoryQuestions{
 		UserID:    authCtx.UserID,
 		Subject:   strings.ToLower(strings.TrimSpace(questions.Subject)),
@@ -84,6 +89,10 @@ func RegisterMCQQuestionSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	for i := range questions.QuestionList {
+		questions.QuestionList[i].ID = primitive.NewObjectID()
+	}
+
 	questionList := models.MCQQuestions{
 		UserID:    authCtx.UserID,
 		Subject:   strings.ToLower(strings.TrimSpace(questions.Subject)),
@@ -123,6 +132,7 @@ func RegisterMCQExam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mongoRes, err := db.GetExamCollection().InsertOne(r.Context(), models.MCQExam{
+		ID : primitive.NewObjectID(),
 		Subject:      examRequest.Subject,
 		Semester:     examRequest.Semester,
 		Category:     models.Category(examRequest.Category),
@@ -156,7 +166,9 @@ func RegisterTheoryExam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+
 	mongoRes, err := db.GetExamCollection().InsertOne(r.Context(), models.TheoryExam{
+		ID : primitive.NewObjectID(),
 		Subject:      examRequest.Subject,
 		Semester:     examRequest.Semester,
 		Category:     models.Category(examRequest.Category),
@@ -194,6 +206,7 @@ func RegisterTheoryAndMCQExam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mongoRes, err := db.GetExamCollection().InsertOne(r.Context(), models.BothQuestionsExam{
+		ID:             primitive.NewObjectID(),
 		Subject:        examRequest.Subject,
 		Semester:       examRequest.Semester,
 		Category:       models.CategoryBoth,

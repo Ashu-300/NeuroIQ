@@ -11,6 +11,7 @@ type TheoryQuestions struct {
 }
 
 type TheoryQuestion struct {
+	ID  			primitive.ObjectID	`json:"question_id" bson:"question_id"`
 	Marks    int    `json:"marks" bson:"marks" validate:"required"`
 	Question string `json:"question" bson:"question" validate:"required"`
 }
@@ -24,6 +25,7 @@ type MCQQuestions struct {
 }
 
 type MCQQuestion struct {
+	ID  			primitive.ObjectID	`json:"question_id" bson:"question_id"`
 	Question      string   `json:"question" bson:"question" validate:"required"`
 	Options       []string `json:"options" bson:"options" validate:"required"`
 	CorrectOption string   `json:"correct_option" bson:"correct_option" validate:"required"`
@@ -38,6 +40,7 @@ const (
 )
 
 type MCQExam struct {
+	ID 		primitive.ObjectID	`json:"_id" bson:"_id"`
 	Subject      string        `json:"subject" bson:"subject" validate:"required"`
 	Semester     string        `json:"semester" bson:"semester" validate:"required"`
 	Category     Category      `json:"category" bson:"category" validate:"required"`
@@ -45,6 +48,7 @@ type MCQExam struct {
 }
 
 type TheoryExam struct {
+	ID 			primitive.ObjectID	`json:"_id" bson:"_id,"`
 	Subject      string           `json:"subject" bson:"subject" validate:"required"`
 	Semester     string           `json:"semester" bson:"semester" validate:"required"`
 	Category     Category         `json"category" bson:"category" validate:"required"`

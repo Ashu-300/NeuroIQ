@@ -10,7 +10,7 @@ import { LoginPage, SignupPage } from '../pages/auth';
 
 // Dashboard Pages
 import { Dashboard as AdminDashboard, RoomManagementPage, SeatingGenerationPage, AttendancePage } from '../pages/admin';
-import { Dashboard as TeacherDashboard, UploadSyllabusPage, GenerateFromTextPage, GeneratedQuestionsPage, GeneratedMCQPage, QuestionBankPage, CreateExamPage, ExamListPage, ScheduledExamsPage, StudentAttemptsPage } from '../pages/teacher';
+import { Dashboard as TeacherDashboard, UploadSyllabusPage, GenerateFromTextPage, GeneratedQuestionsPage, GeneratedMCQPage, QuestionBankPage, CreateExamPage, ExamListPage, ScheduledExamsPage, StudentAttemptsPage, EvaluateSubmissionPage } from '../pages/teacher';
 import { Dashboard as StudentDashboard, ExamLaunchPage, IdentityVerificationPage, ProctoringExamPage, StudentRegistrationPage } from '../pages/student';
 import ProfilePage from '../pages/ProfilePage';
 
@@ -64,6 +64,7 @@ const Router = () => {
           <Route path="exams" element={<ExamListPage />} />
           <Route path="scheduled-exams" element={<ScheduledExamsPage />} />
           <Route path="exam/:examId/attempts" element={<StudentAttemptsPage />} />
+          <Route path="exam/:examId/evaluate/:sessionId/:studentId" element={<EvaluateSubmissionPage />} />
         </Route>
 
         {/* Student Routes */}

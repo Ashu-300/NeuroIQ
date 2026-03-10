@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { verifyIdentity, startExam } from '../../api/proctoring.api';
+import { verifyIdentity, startExam, getMyExamStatus, getExamStatus } from '../../api/proctoring.api';
 import { useCamera } from '../../hooks';
 import { Button, Card, Loader } from '../../components/ui';
 import { Toast } from '../../components/feedback';
@@ -14,12 +14,67 @@ const IdentityVerificationPage = () => {
   
   const [faceImage, setFaceImage] = useState(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+  const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+  // Helper to check if status indicates submission
+  const isSubmittedStatus = (statusValue) => {
+    const normalized = String(statusValue || '').toLowerCase();
+    return normalized === 'submitted' || normalized === 'auto_submitted' || normalized === 'terminated';
+  };
 
   useEffect(() => {
     if (!exam) {
       navigate('/student/exams');
+      return;
     }
+
+    // Check if exam was already submitted before allowing attempt
+    const checkExamStatus = async () => {
+      try {
+        const examId = exam.schedule_id || exam.id;
+        const myStatus = await getMyExamStatus(examId);
+
+        // If can_attempt is explicitly false, block
+        if (myStatus?.can_attempt === false) {
+          setAlreadySubmitted(true);
+          setToast({
+            show: true,
+            message: 'You have already submitted this exam.',
+            type: 'error',
+          });
+          setTimeout(() => navigate('/student/exams'), 2500);
+          return;
+        }
+
+        // If a session exists, verify its status
+        if (myStatus?.session_id) {
+          try {
+            const sessionStatus = await getExamStatus(myStatus.session_id);
+            if (isSubmittedStatus(sessionStatus?.status)) {
+              setAlreadySubmitted(true);
+              setToast({
+                show: true,
+                message: 'You have already submitted this exam.',
+                type: 'error',
+              });
+              setTimeout(() => navigate('/student/exams'), 2500);
+              return;
+            }
+          } catch (sessionErr) {
+            console.error('Failed to check session status:', sessionErr);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to check exam status:', err);
+        // Continue anyway if status check fails
+      } finally {
+        setIsCheckingStatus(false);
+      }
+    };
+
+    checkExamStatus();
   }, [exam, navigate]);
 
   useEffect(() => {
@@ -62,7 +117,8 @@ const IdentityVerificationPage = () => {
       });
 
       const startResult = await startExam({
-        exam_id: exam.id,
+        // Proctoring attempt lock is tracked against scheduled exam id.
+        exam_id: exam.schedule_id || exam.id || exam.exam_id || exam.question_bank_id,
       });
 
       const sessionId = startResult.session_id;
@@ -106,12 +162,15 @@ const IdentityVerificationPage = () => {
       }, 1000);
     } catch (err) {
       console.error('Exam start error:', err);
+      const status = err.status || err.response?.status;
+      const detail = err.data?.detail || err.response?.data?.detail || '';
+      const message = err.message || detail;
       
       // Check if exam was already submitted (409 Conflict)
-      if (err.response?.status === 409) {
+      if (status === 409) {
         setToast({
           show: true,
-          message: err.response?.data?.detail || 'You have already submitted this exam.',
+          message: detail || 'You have already submitted this exam.',
           type: 'error',
         });
         // Navigate back to exams list after showing message
@@ -120,11 +179,28 @@ const IdentityVerificationPage = () => {
         }, 3000);
         return;
       }
+
+      // Identity verification specific message for unclear/invalid face photos.
+      const isIdentityVerificationBadRequest =
+        status === 400 &&
+        /identity verification failed|no face detected|multiple faces detected|camera appears to be hidden|failed to decode frame/i.test(
+          detail || message
+        );
+
+      if (isIdentityVerificationBadRequest) {
+        setToast({
+          show: true,
+          message: 'Photo not clear. Please retake your face photo and try again.',
+          type: 'error',
+        });
+        setFaceImage(null);
+        return;
+      }
       
       // Show error for other failures
       setToast({
         show: true,
-        message: err.response?.data?.detail || err.message || 'Failed to start exam. Please try again.',
+        message: detail || message || 'Failed to start exam. Please try again.',
         type: 'error',
       });
     } finally {
@@ -134,6 +210,39 @@ const IdentityVerificationPage = () => {
 
   if (!exam) {
     return null;
+  }
+
+  // Show loading while checking submission status
+  if (isCheckingStatus) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <Loader size="lg" />
+        <p className="text-gray-500">Checking exam status...</p>
+      </div>
+    );
+  }
+
+  // Show message if already submitted
+  if (alreadySubmitted) {
+    return (
+      <div className="max-w-md mx-auto text-center space-y-4 py-12">
+        <div className="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center">
+          <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-bold text-gray-900">Exam Already Submitted</h2>
+        <p className="text-gray-600">You have already submitted this exam. Multiple attempts are not allowed.</p>
+        <p className="text-sm text-gray-500">Redirecting to exams list...</p>
+        {toast.show && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast({ ...toast, show: false })}
+          />
+        )}
+      </div>
+    );
   }
 
   return (
@@ -254,11 +363,11 @@ const IdentityVerificationPage = () => {
 
         {faceImage && (
           <>
-            <Button variant="outline" fullWidth onClick={handleRetake}>
+            <Button variant="outline" fullWidth onClick={handleRetake} disabled={isVerifying}>
               Retake
             </Button>
-            <Button fullWidth onClick={handleVerify} loading={isVerifying}>
-              Start Exam
+            <Button fullWidth onClick={handleVerify} loading={isVerifying} disabled={alreadySubmitted}>
+              {alreadySubmitted ? 'Already Submitted' : 'Start Exam'}
             </Button>
           </>
         )}

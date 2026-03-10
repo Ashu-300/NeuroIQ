@@ -26,7 +26,7 @@ const CreateExamPage = () => {
   const selectedQuestions = allQuestions.filter((_, i) => selectedIndices.has(i));
 
   const totalMarks = selectedQuestions.reduce(
-    (sum, q) => sum + (q.marks || 1),
+    (sum, q) => sum + (q.type === 'MCQ' ? 1 : (q.marks || 1)),
     0
   );
 
@@ -72,10 +72,12 @@ const CreateExamPage = () => {
           subject: examDetails.subject,
           semester: examDetails.semester,
           theory_questions: theoryQuestions.map(q => ({
+            question_id: q.question_id || q._id || q.id,
             marks: q.marks || 1,
             question: q.question,
           })),
           mcq_questions: mcqQuestions.map(q => ({
+            question_id: q.question_id || q._id || q.id,
             question: q.question,
             options: q.options,
             correct_option: q.correct_option,
@@ -86,14 +88,23 @@ const CreateExamPage = () => {
           subject: examDetails.subject,
           semester: examDetails.semester,
           category: 'THEORY',
-          mcq_questions: selectedQuestions,
+          mcq_questions: selectedQuestions.map(q => ({
+            question_id: q.question_id || q._id || q.id,
+            marks: q.marks || 1,
+            question: q.question,
+          })),
         });
       } else {
         await generateMCQExam({
           subject: examDetails.subject,
           semester: examDetails.semester,
           category: 'MCQ',
-          mcq_questions: selectedQuestions,
+          mcq_questions: selectedQuestions.map(q => ({
+            question_id: q.question_id || q._id || q.id,
+            question: q.question,
+            options: q.options,
+            correct_option: q.correct_option,
+          })),
         });
       }
 

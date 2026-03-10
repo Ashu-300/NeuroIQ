@@ -1,37 +1,91 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Card, Button, Modal } from '../../components/ui';
 import { getExamStudentsWithReports, getProctoringReport } from '../../api/proctoring.api';
-import { getScheduledExamDetails } from '../../api/management.api';
+import { checkStudentEvaluationExists } from '../../api/answer.api';
+
+// Helper to normalize MongoDB ObjectID
+const normalizeId = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (value.$oid) return value.$oid;
+  return String(value);
+};
 
 const StudentAttemptsPage = () => {
   const { examId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Get exam reference from state or localStorage (for persistence across refreshes)
+  const examRef = useMemo(() => {
+    // First try from navigation state
+    if (location.state?.question_bank_id) {
+      return {
+        question_bank_id: normalizeId(location.state.question_bank_id),
+        exam_title: location.state.exam_title || '',
+        subject: location.state.subject || '',
+      };
+    }
+    // Fallback to localStorage
+    const stored = localStorage.getItem(`exam_ref_${examId}`);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        return {
+          question_bank_id: normalizeId(parsed.question_bank_id),
+          exam_title: parsed.exam_title || '',
+          subject: parsed.subject || '',
+        };
+      } catch {
+        return { question_bank_id: '', exam_title: '', subject: '' };
+      }
+    }
+    return { question_bank_id: '', exam_title: '', subject: '' };
+  }, [examId, location.state]);
+  
+  const questionBankId = examRef.question_bank_id;
+  const examTitle = examRef.exam_title;
+  const examSubject = examRef.subject;
+  
   const [examDetails, setExamDetails] = useState(null);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
+  const [evaluationStatus, setEvaluationStatus] = useState({}); // studentId -> boolean
 
   useEffect(() => {
     if (examId) {
+      console.log('StudentAttemptsPage mounted with:', { examId, questionBankId, examTitle, examSubject });
       fetchData();
     }
-  }, [examId]);
+  }, [examId, questionBankId]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       
-      // Fetch exam details and student attempts in parallel
-      const [examData, studentsData] = await Promise.all([
-        getScheduledExamDetails(examId).catch(() => null),
-        getExamStudentsWithReports(examId),
-      ]);
+      // Fetch student attempts
+      const studentsData = await getExamStudentsWithReports(examId);
+      const studentsList = studentsData.students || [];
+      setStudents(studentsList);
 
-      setExamDetails(examData);
-      setStudents(studentsData.students || []);
+      // Check evaluation status for each student (using question_bank_id)
+      if (questionBankId && studentsList.length > 0) {
+        const statusPromises = studentsList.map(async (student) => {
+          const isEvaluated = await checkStudentEvaluationExists(questionBankId, student.student_id);
+          return { studentId: student.student_id, isEvaluated };
+        });
+        
+        const statuses = await Promise.all(statusPromises);
+        const statusMap = {};
+        statuses.forEach(({ studentId, isEvaluated }) => {
+          statusMap[studentId] = isEvaluated;
+        });
+        setEvaluationStatus(statusMap);
+      }
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
@@ -94,11 +148,16 @@ const StudentAttemptsPage = () => {
             Back
           </button>
           <h1 className="text-2xl font-bold text-gray-900">
-            Student Attempts {examDetails?.exam_name && `- ${examDetails.exam_name}`}
+            Student Attempts {(examTitle || examDetails?.exam_name) && `- ${examTitle || examDetails?.exam_name}`}
           </h1>
           <p className="text-gray-500 mt-1">
             View student proctoring reports and violation details
           </p>
+          {!questionBankId && (
+            <p className="text-orange-500 text-sm mt-1">
+              Warning: Missing question bank reference. Evaluation may not work properly.
+            </p>
+          )}
         </div>
         <Button onClick={fetchData} variant="secondary">
           Refresh
@@ -230,13 +289,42 @@ const StudentAttemptsPage = () => {
                           >
                             {hasReport ? 'View Report' : 'No Report'}
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            disabled={student.status === 'active'}
-                          >
-                            Evaluate
-                          </Button>
+                          {evaluationStatus[student.student_id] ? (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="bg-green-100 text-green-800 border-green-300 hover:bg-green-200"
+                              onClick={() => navigate(`/teacher/exam/${examId}/evaluate/${student.session_id}/${student.student_id}`, {
+                                state: {
+                                  question_bank_id: questionBankId,
+                                  exam_title: examTitle,
+                                  subject: examSubject,
+                                  viewOnly: true,
+                                }
+                              })}
+                            >
+                              <svg className="w-4 h-4 mr-1 inline" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                              View Evaluation
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              disabled={student.status === 'active' || !questionBankId}
+                              onClick={() => navigate(`/teacher/exam/${examId}/evaluate/${student.session_id}/${student.student_id}`, {
+                                state: {
+                                  question_bank_id: questionBankId,
+                                  exam_title: examTitle,
+                                  subject: examSubject,
+                                }
+                              })}
+                              title={!questionBankId ? 'Missing exam reference. Please go back and try again.' : ''}
+                            >
+                              Evaluate
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

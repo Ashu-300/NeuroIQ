@@ -6,6 +6,7 @@ export const API_BASE_URLS = {
   MANAGEMENT: import.meta.env.VITE_MANAGEMENT_API_URL || 'http://localhost:8004',
   QUESTION: import.meta.env.VITE_QUESTION_API_URL || 'http://localhost:8005',
   PROCTORING: import.meta.env.VITE_PROCTORING_API_URL || 'http://localhost:8000',
+  ANSWER: import.meta.env.VITE_ANSWER_API_URL || 'http://localhost:8006',
 };
 
 // WebSocket URL for proctoring

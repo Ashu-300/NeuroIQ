@@ -40,7 +40,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		authCtx := AuthContext{
-			UserID: claims.UserID,
+			UserID: claims.ID,
 			Email:  claims.Email,
 			Role:   claims.Role,
 		}

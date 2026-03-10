@@ -8,3 +8,4 @@ export { default as CreateExamPage } from './CreateExamPage';
 export { default as ExamListPage } from './ExamListPage';
 export { default as ScheduledExamsPage } from './ScheduledExamsPage';
 export { default as StudentAttemptsPage } from './StudentAttemptsPage';
+export { default as EvaluateSubmissionPage } from './EvaluateSubmissionPage';

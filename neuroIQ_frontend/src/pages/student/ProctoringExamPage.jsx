@@ -1,10 +1,44 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { submitExam, getExamStatus } from '../../api/proctoring.api';
+import { submitExam, endExamSession, getExamStatus } from '../../api/proctoring.api';
+import { submitExamAnswers } from '../../api/answer.api';
 import { getExam } from '../../api/question.api';
 import { useCamera, useWebSocket } from '../../hooks';
 import { Button, Card, CardTitle, Loader, Modal } from '../../components/ui';
 import { Toast } from '../../components/feedback';
+
+// LocalStorage key for caching submitted exams (shared with ExamLaunchPage)
+const SUBMITTED_EXAMS_KEY = 'neuroiq_submitted_exams';
+
+// Helper to mark exam as submitted in localStorage cache
+const markExamAsSubmittedInCache = (examId) => {
+  try {
+    // Get student ID from localStorage
+    let studentId = null;
+    const storedProfile = localStorage.getItem('neuroiq_student_profile');
+    if (storedProfile) {
+      const profile = JSON.parse(storedProfile);
+      studentId = profile._id || profile.id || profile.student_id;
+    }
+    if (!studentId) {
+      const authData = localStorage.getItem('neuroiq_auth');
+      if (authData) {
+        const auth = JSON.parse(authData);
+        studentId = auth.userId || auth.user_id || auth.id;
+      }
+    }
+    
+    if (!studentId || !examId) return;
+    
+    const submittedExams = JSON.parse(localStorage.getItem(SUBMITTED_EXAMS_KEY) || '{}');
+    const key = `${studentId}_${examId}`;
+    submittedExams[key] = true;
+    localStorage.setItem(SUBMITTED_EXAMS_KEY, JSON.stringify(submittedExams));
+    console.log(`Marked exam ${examId} as submitted for student ${studentId}`);
+  } catch (err) {
+    console.error('Failed to cache submitted exam:', err);
+  }
+};
 
 // Question status enum
 const QuestionStatus = {
@@ -113,9 +147,10 @@ const ProctoringExamPage = () => {
 
     const fetchQuestions = async () => {
       try {
-        // Fetch exam data from question service using exam ID
-        console.log('Fetching exam with ID:', exam.id);
-        const examData = await getExam(exam.id);
+        // Fetch exam data from question service using question_bank_id (not schedule_id)
+        const questionBankId = exam.question_bank_id || exam.id;
+        console.log('Fetching exam with question_bank_id:', questionBankId);
+        const examData = await getExam(questionBankId);
         
         if (!examData || !examData.exam) {
           throw new Error('No exam data returned');
@@ -127,7 +162,7 @@ const ProctoringExamPage = () => {
         if (examData.exam.theory_questions && examData.exam.theory_questions.length > 0) {
           examData.exam.theory_questions.forEach((q, idx) => {
             fetchedQuestions.push({
-              id: `theory_${idx}`,
+              id: q.question_id || q._id || `theory_${idx}`,
               question: q.question,
               type: 'THEORY',
               marks: q.marks || 5,
@@ -139,12 +174,12 @@ const ProctoringExamPage = () => {
         if (examData.exam.mcq_questions && examData.exam.mcq_questions.length > 0) {
           examData.exam.mcq_questions.forEach((q, idx) => {
             fetchedQuestions.push({
-              id: `mcq_${idx}`,
+              id: q.question_id || q._id || `mcq_${idx}`,
               question: q.question,
               type: 'MCQ',
               options: q.options,
               correctOption: q.correct_option, // Store for potential auto-grading
-              marks: q.marks || 2,
+              marks: q.marks || 1,
             });
           });
         }
@@ -155,16 +190,16 @@ const ProctoringExamPage = () => {
           examData.exam.question_list.forEach((q, idx) => {
             if (category === 'MCQ') {
               fetchedQuestions.push({
-                id: `mcq_${idx}`,
+                id: q.question_id || q._id || `mcq_${idx}`,
                 question: q.question,
                 type: 'MCQ',
                 options: q.options,
                 correctOption: q.correct_option,
-                marks: q.marks || 2,
+                marks: q.marks || 1,
               });
             } else {
               fetchedQuestions.push({
-                id: `theory_${idx}`,
+                id: q.question_id || q._id || `theory_${idx}`,
                 question: q.question,
                 type: 'THEORY',
                 marks: q.marks || 5,
@@ -547,14 +582,71 @@ const ProctoringExamPage = () => {
   };
 
   const handleAutoSubmit = async () => {
-    await submitAnswers();
+    await submitAllAnswers();
   };
 
-  const submitAnswers = async () => {
+  // Build answer payload in separate arrays because backend expects theory_answers and mcq_answers.
+  const buildSeparatedAnswers = () => {
+    const theory_answers = [];
+    const mcq_answers = [];
+
+    questions.forEach((q) => {
+      const answerValue = answers[q.id] || '';
+      const isMcq = q.type === 'MCQ';
+
+      if (isMcq) {
+        mcq_answers.push({
+          question_id: q.id,
+          question_text: q.question,
+          options: q.options || [],
+          selected_option: answerValue,
+          // Correct option is sent from backend when exam is loaded and echoed back at submit time.
+          correct_option: q.correctOption || '',
+          marks: q.marks || 1,
+        });
+        return;
+      }
+
+      theory_answers.push({
+        question_id: q.id,
+        question_text: q.question,
+        max_marks: q.marks || 5,
+        answer_text: answerValue,
+      });
+    });
+
+    return { theory_answers, mcq_answers };
+  };
+
+  const submitAllAnswers = async () => {
     setIsSubmitting(true);
     try {
-      // Submit exam with just session_id (backend handles the rest)
+      // First, submit answers to Answer Service
+      const separatedAnswers = buildSeparatedAnswers();
+      const answerPayload = {
+        exam_id: exam.question_bank_id || exam.id,
+        session_id: sessionId,
+        subject: exam.subject || '',
+        semester: exam.semester || '',
+        exam_type: 'ONLINE',
+        theory_answers: separatedAnswers.theory_answers,
+        mcq_answers: separatedAnswers.mcq_answers,
+      };
+
+      try {
+        await submitExamAnswers(answerPayload);
+        console.log('Answers submitted to Answer Service');
+      } catch (answerErr) {
+        console.error('Failed to submit answers to Answer Service:', answerErr);
+        // Continue with exam submission even if answer service fails
+      }
+
+      // Then, submit exam session to Proctoring Service
       await submitExam(sessionId);
+
+      // Mark exam as submitted in localStorage cache (using schedule_id/exam.id)
+      const examIdForCache = exam.schedule_id || exam.id;
+      markExamAsSubmittedInCache(examIdForCache);
 
       // Clear intervals
       if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
@@ -572,20 +664,13 @@ const ProctoringExamPage = () => {
         navigate('/student/dashboard');
       }, 2000);
     } catch (err) {
-      // Even if API fails, end the exam for the user
-      if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
-      if (timerRef.current) clearInterval(timerRef.current);
-      await exitFullscreen();
-      
+      console.error('Failed to submit exam session:', err);
+      const detail = err.data?.detail || err.response?.data?.detail || err.message;
       setToast({
         show: true,
-        message: 'Exam submitted!',
-        type: 'success',
+        message: detail || 'Failed to submit exam. Please try again.',
+        type: 'error',
       });
-
-      setTimeout(() => {
-        navigate('/student/dashboard');
-      }, 2000);
     } finally {
       setIsSubmitting(false);
       setShowSubmitModal(false);
@@ -593,10 +678,50 @@ const ProctoringExamPage = () => {
   };
 
   const handleEndExam = async () => {
-    await exitFullscreen();
-    setExamStarted(false);
-    setShowEndExamModal(false);
-    navigate('/student/exams');
+    setIsSubmitting(true);
+    try {
+      if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
+
+      // Best effort: send one final frame before ending.
+      const finalFrame = captureFrame();
+      if (finalFrame && isConnected) {
+        sendFrame(finalFrame);
+      }
+
+      await endExamSession(sessionId);
+      
+      // Mark exam as submitted in localStorage cache (using schedule_id/exam.id)
+      const examIdForCache = exam.schedule_id || exam.id;
+      markExamAsSubmittedInCache(examIdForCache);
+      
+      disconnect();
+      await exitFullscreen();
+
+      setToast({
+        show: true,
+        message: 'Exam ended and proctoring data saved.',
+        type: 'success',
+      });
+
+      setTimeout(() => {
+        setExamStarted(false);
+        setShowEndExamModal(false);
+        navigate('/student/dashboard');
+      }, 1200);
+    } catch (err) {
+      console.error('Failed to end exam cleanly:', err);
+      disconnect();
+      await exitFullscreen();
+      setToast({
+        show: true,
+        message: 'Could not confirm exam end on server. Please refresh dashboard and verify status.',
+        type: 'error',
+      });
+      setShowEndExamModal(false);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const currentQuestion = questions[currentIndex];
@@ -670,7 +795,7 @@ const ProctoringExamPage = () => {
                 <p className="text-sm text-green-700">Minutes</p>
               </div>
               <div className="bg-purple-50 rounded-lg p-3">
-                <p className="text-2xl font-bold text-purple-600">{exam.total_marks || questions.reduce((acc, q) => acc + (q.marks || 0), 0)}</p>
+                <p className="text-2xl font-bold text-purple-600">{exam.total_marks || questions.reduce((acc, q) => acc + (q.type === 'MCQ' ? 1 : (q.marks || 0)), 0)}</p>
                 <p className="text-sm text-purple-700">Total Marks</p>
               </div>
             </div>
@@ -1059,7 +1184,7 @@ const ProctoringExamPage = () => {
             >
               Continue Exam
             </Button>
-            <Button fullWidth onClick={submitAnswers} loading={isSubmitting}>
+            <Button fullWidth onClick={submitAllAnswers} loading={isSubmitting}>
               Submit Exam
             </Button>
           </div>

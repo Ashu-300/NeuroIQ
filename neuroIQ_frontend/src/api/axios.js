@@ -131,11 +131,21 @@ const createAxiosInstance = (baseURL, options = {}) => {
         }
       }
 
-      // Normalize error response
+      // Normalize error response while preserving backend detail and axios-like shape.
+      const responseData = error.response?.data || {};
       const normalizedError = {
-        message: error.response?.data?.message || error.message || 'An error occurred',
+        message:
+          responseData.message ||
+          responseData.detail ||
+          responseData.error ||
+          error.message ||
+          'An error occurred',
         status: error.response?.status,
-        data: error.response?.data,
+        data: responseData,
+        response: {
+          status: error.response?.status,
+          data: responseData,
+        },
       };
 
       return Promise.reject(normalizedError);

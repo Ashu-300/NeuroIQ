@@ -70,10 +70,12 @@ async function getSessionsByExamId(examId) {
  * Get student's status for a specific exam
  */
 async function getStudentExamStatus(studentId, examId) {
-    const session = await ExamSession.findOne({
+    const sessions = await ExamSession.find({
         student_id: studentId,
         exam_id: examId,
-    });
+    }).sort({ start_time: -1 });
+
+    const session = sessions[0];
 
     if (!session) {
         return {
@@ -83,12 +85,16 @@ async function getStudentExamStatus(studentId, examId) {
         };
     }
 
-    if (session.status === ExamStatusEnum.SUBMITTED || session.status === ExamStatusEnum.AUTO_SUBMITTED) {
+    const submittedSession = sessions.find(
+        s => s.status === ExamStatusEnum.SUBMITTED || s.status === ExamStatusEnum.AUTO_SUBMITTED
+    );
+
+    if (submittedSession) {
         return {
             has_session: true,
-            session_id: session._id,
-            status: session.status,
-            start_time: session.start_time,
+            session_id: submittedSession._id,
+            status: submittedSession.status,
+            start_time: submittedSession.start_time,
             can_attempt: false,
             message: 'You have already submitted this exam.',
         };
@@ -108,14 +114,22 @@ async function getStudentExamStatus(studentId, examId) {
  * Submit an exam session
  */
 async function submitExam(sessionId) {
-    const session = await ExamSession.findByIdAndUpdate(
-        sessionId,
-        {
-            status: ExamStatusEnum.SUBMITTED,
-            end_time: new Date(),
-        },
-        { new: true }
-    );
+    const existingSession = await ExamSession.findById(sessionId);
+    if (!existingSession) {
+        throw new Error(`Session ${sessionId} not found`);
+    }
+
+    let session = existingSession;
+    if (existingSession.status !== ExamStatusEnum.SUBMITTED && existingSession.status !== ExamStatusEnum.AUTO_SUBMITTED) {
+        session = await ExamSession.findByIdAndUpdate(
+            sessionId,
+            {
+                status: ExamStatusEnum.SUBMITTED,
+                end_time: new Date(),
+            },
+            { new: true }
+        );
+    }
 
     logger.info(`Exam submitted: ${sessionId}`);
 
@@ -129,14 +143,22 @@ async function submitExam(sessionId) {
  * Auto-submit an exam due to violations
  */
 async function autoSubmitExam(sessionId, reason = 'violation_threshold') {
-    const session = await ExamSession.findByIdAndUpdate(
-        sessionId,
-        {
-            status: ExamStatusEnum.AUTO_SUBMITTED,
-            end_time: new Date(),
-        },
-        { new: true }
-    );
+    const existingSession = await ExamSession.findById(sessionId);
+    if (!existingSession) {
+        throw new Error(`Session ${sessionId} not found`);
+    }
+
+    let session = existingSession;
+    if (existingSession.status !== ExamStatusEnum.SUBMITTED && existingSession.status !== ExamStatusEnum.AUTO_SUBMITTED) {
+        session = await ExamSession.findByIdAndUpdate(
+            sessionId,
+            {
+                status: ExamStatusEnum.AUTO_SUBMITTED,
+                end_time: new Date(),
+            },
+            { new: true }
+        );
+    }
 
     logger.warning(`Exam auto-submitted: ${sessionId}`, { reason });
 
@@ -167,10 +189,7 @@ async function saveProctoringReport(session) {
         ? Math.floor((new Date(session.end_time) - new Date(session.start_time)) / 1000)
         : 0;
 
-    const reportId = uuidv4();
-    const report = new ExamReport({
-        _id: reportId,
-        session_id: session._id,
+    const reportPayload = {
         student_id: session.student_id,
         exam_id: session.exam_id,
         start_time: session.start_time,
@@ -180,9 +199,23 @@ async function saveProctoringReport(session) {
         total_warnings: session.warnings,
         violations: violationData,
         identity_verified: session.identity_verified,
-    });
+    };
 
-    await report.save();
+    let report = await ExamReport.findOneAndUpdate(
+        { session_id: session._id },
+        { $set: reportPayload },
+        { new: true }
+    );
+
+    if (!report) {
+        report = new ExamReport({
+            _id: uuidv4(),
+            session_id: session._id,
+            ...reportPayload,
+        });
+        await report.save();
+    }
+
     logger.info(`Proctoring report saved for session: ${session._id}`);
 
     return report;
@@ -222,7 +255,7 @@ async function verifyIdentity(sessionId, snapshotBase64) {
 async function incrementWarnings(sessionId) {
     const session = await ExamSession.findByIdAndUpdate(
         sessionId,
-        { $inc: { warnings: 1 } },
+        { $inc: { warnings: 1, violation_count: 1 } },
         { new: true }
     );
     return session ? session.warnings : 0;
