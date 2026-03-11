@@ -1,0 +1,24 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# install build dependencies for canvas
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    cairo-dev \
+    pango-dev \
+    jpeg-dev \
+    giflib-dev \
+    librsvg-dev
+
+COPY proctoring/package*.json ./
+
+RUN npm install
+
+COPY proctoring/ .
+
+EXPOSE 8000
+
+CMD ["npm", "start"]

@@ -1,12 +1,12 @@
 // API Base URLs for each service (loaded from environment variables)
 export const API_BASE_URLS = {
-  AUTH: import.meta.env.VITE_AUTH_API_URL || 'http://localhost:8001',
-  INGESTION: import.meta.env.VITE_INGESTION_API_URL || 'http://localhost:8002',
-  LLM: import.meta.env.VITE_LLM_API_URL || 'http://localhost:8003',
-  MANAGEMENT: import.meta.env.VITE_MANAGEMENT_API_URL || 'http://localhost:8004',
-  QUESTION: import.meta.env.VITE_QUESTION_API_URL || 'http://localhost:8005',
-  PROCTORING: import.meta.env.VITE_PROCTORING_API_URL || 'http://localhost:8000',
-  ANSWER: import.meta.env.VITE_ANSWER_API_URL || 'http://localhost:8006',
+  AUTH: import.meta.env.VITE_AUTH_API_URL || 'http://localhost:80',
+  INGESTION: import.meta.env.VITE_INGESTION_API_URL || 'http://localhost:80',
+  LLM: import.meta.env.VITE_LLM_API_URL || 'http://localhost:80',
+  MANAGEMENT: import.meta.env.VITE_MANAGEMENT_API_URL || 'http://localhost:80',
+  QUESTION: import.meta.env.VITE_QUESTION_API_URL || 'http://localhost:80',
+  PROCTORING: import.meta.env.VITE_PROCTORING_API_URL || 'http://localhost:80',
+  ANSWER: import.meta.env.VITE_ANSWER_API_URL || 'http://localhost:80',
 };
 
 // WebSocket URL for proctoring

@@ -1,0 +1,24 @@
+# ---------- BUILD STAGE ----------
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+COPY answer/go.mod answer/go.sum ./
+RUN go mod download
+
+COPY answer/ .
+
+COPY proto/evaluation.proto ./proto
+
+RUN go build -o service
+
+# ---------- RUN STAGE ----------
+FROM alpine:latest
+
+WORKDIR /app
+
+COPY --from=builder /app/service .
+
+EXPOSE 8006
+
+CMD ["./service"]

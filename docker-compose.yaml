@@ -1,0 +1,154 @@
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/dockerfile
+    image: ashutoshnigam300/neuroiq-gateway:latest
+    container_name: neuroiq_gateway
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - auth
+      - ingestion
+      - llm
+      - management
+      - question
+      - answer
+      - proctoring
+
+  frontend:
+    build:
+      context: .
+      dockerfile: neuroIQ_frontend/dockerfile
+    image: ashutoshnigam300/neuroiq-frontend:latest
+    container_name: neuroiq_frontend
+    env_file:
+      - ./neuroIQ_frontend/.env
+    restart: unless-stopped
+
+  auth:
+    build:
+      context: .
+      dockerfile: auth/dockerfile
+    image: ashutoshnigam300/neuroiq-auth:latest
+    container_name: auth_service
+    env_file:
+      - ./auth/.env
+    restart: unless-stopped
+    depends_on:
+      - postgres
+
+  ingestion:
+    build:
+      context: .
+      dockerfile: ingestion/dockerfile
+    image: ashutoshnigam300/neuroiq-ingestion:latest
+    container_name: ingestion_service
+    env_file:
+      - ./ingestion/.env
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - llm
+
+  llm:
+    build:  
+      context: .
+      dockerfile: llm/dockerfile
+    image: ashutoshnigam300/neuroiq-llm:latest
+    container_name: llm_service
+    env_file:
+      - ./llm/.env
+    restart: unless-stopped
+    depends_on:
+      - ollama
+
+  management:
+    build:
+      context: .
+      dockerfile: management/dockerfile
+    image: ashutoshnigam300/neuroiq-management:latest
+    container_name: management_service
+    env_file:
+      - ./management/.env
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - mongo
+
+  question:
+    build:
+      context: .
+      dockerfile: question/dockerfile
+    image: ashutoshnigam300/neuroiq-question:latest
+    container_name: question_service
+    env_file:
+      - ./question/.env
+    restart: unless-stopped
+    depends_on:
+      - mongo
+
+  answer:
+    build:
+      context: .
+      dockerfile: answer/dockerfile
+    image: ashutoshnigam300/neuroiq-answer:latest
+    container_name: answer_service
+    env_file:
+      - ./answer/.env
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - llm
+
+  proctoring:
+    build:
+      context: .
+      dockerfile: proctoring/dockerfile
+    image: ashutoshnigam300/neuroiq-proctoring:latest
+    container_name: proctoring_service
+    env_file:
+      - ./proctoring/.env
+    restart: unless-stopped
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:7
+    container_name: neuroiq_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  postgres:
+    image: postgres:16
+    container_name: neuroiq_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: neuroiq
+      POSTGRES_PASSWORD: neuroiq
+      POSTGRES_DB: neuroiq
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: neuroiq_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  mongo_data:
+  postgres_data:
+  ollama_data:

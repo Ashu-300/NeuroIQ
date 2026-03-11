@@ -10,14 +10,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
-	"github.com/joho/godotenv"
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("⚠️ No .env file found, using environment variables")
-	}
+	
 
 	db.MongoInit()
 
@@ -41,7 +37,7 @@ func main() {
 	}
 
 	fmt.Printf("🚀 Answer service running on port %s\n", port)
-	err = http.ListenAndServe(":"+port, router)
+	err := http.ListenAndServe(":"+port, router)
 	if err != nil {
 		log.Fatal("⚠️ Error starting server:", err)
 	}

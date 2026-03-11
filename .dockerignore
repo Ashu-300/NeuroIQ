@@ -1,0 +1,18 @@
+# Node modules (all services)
+**/node_modules
+
+# Git
+.git
+.gitignore
+
+# Environment files
+**/.env
+
+# Temporary folders
+**/tmp
+tmp
+
+# Logs
+npm-debug.log
+*.log
+

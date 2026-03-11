@@ -1,0 +1,16 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY llm/package*.json ./
+
+
+RUN npm install
+
+COPY llm/ .
+
+COPY proto ./proto
+
+EXPOSE 8003
+
+CMD ["npm", "start"]

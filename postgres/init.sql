@@ -1,0 +1,2 @@
+CREATE DATABASE neuroiq_authdb;
+CREATE DATABASE neuroiq_managementdb;

@@ -12,16 +12,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
-	"github.com/joho/godotenv"
 )
 
 func main() {
 
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("⚠️ error : %v", err.Error())
-	}
-
+	
 	db.InitDB()
 	config.InitCloudinary()
 	config.UniPdfInit()
@@ -47,7 +42,7 @@ func main() {
 	}
 
 	log.Print("🚀 Ingestion service running on port " + port)
-	err = http.ListenAndServe(":"+port, router)
+	err := http.ListenAndServe(":"+port, router)
 	if err != nil {
 		log.Printf("❌ error in running ingestion service")
 	}
