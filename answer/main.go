@@ -11,17 +11,18 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
-	"github.com/joho/godotenv"
+	// "github.com/joho/godotenv"
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("⚠️ Error loading .env file:", err)
-	}
+	// err := godotenv.Load()
+	// if err != nil {
+	// 	log.Fatal("⚠️ Error loading .env file:", err)
+	// }
 
 	db.MongoInit()
-	err = grpcclient.InitGRPC()
+	
+	err := grpcclient.InitGRPC()
 	if err != nil {
 		log.Fatal("❌ Failed to initialize gRPC:", err)
 	}
@@ -39,7 +40,7 @@ func main() {
 	}))
 
 	// Mount answer routes
-	router.Mount("/api/answer", routes.SetupAuthRoutes())
+	router.Mount("/api/answer", routes.SetupAnswerRoutes())
 
 	port := os.Getenv("PORT")
 	if port == "" {

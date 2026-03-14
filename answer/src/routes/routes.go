@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func SetupAuthRoutes() chi.Router {
+func SetupAnswerRoutes() chi.Router {
 	r := chi.NewRouter()
 
 	// Public routes

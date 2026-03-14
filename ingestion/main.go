@@ -12,14 +12,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
-	"github.com/joho/godotenv"
+	// "github.com/joho/godotenv"
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("⚠️ Error loading .env file:", err)
-	}
+	// err := godotenv.Load()
+	// if err != nil {
+	// 	log.Fatal("⚠️ Error loading .env file:", err)
+	// }
 	
 	db.InitDB()
 	config.InitCloudinary()
@@ -46,7 +46,7 @@ func main() {
 	}
 
 	log.Print("🚀 Ingestion service running on port " + port)
-	err = http.ListenAndServe(":"+port, router)
+	err := http.ListenAndServe(":"+port, router)
 	if err != nil {
 		log.Printf("❌ error in running ingestion service")
 	}

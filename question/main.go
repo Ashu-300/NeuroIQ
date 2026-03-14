@@ -9,15 +9,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
-	"github.com/joho/godotenv"
+	// "github.com/joho/godotenv"
 )
 
 func main() {
 	
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("⚠️ Error loading .env file:", err)
-	}
+	// err := godotenv.Load()
+	// if err != nil {
+	// 	log.Fatal("⚠️ Error loading .env file:", err)
+	// }
 
 	db.MongoInit()
 
@@ -40,8 +40,8 @@ func main() {
 		port = "8005"
 	}
 
-	log.Printf("🚀 question serivce listening on server %s", port)
-	err = http.ListenAndServe(":"+port, router)
+	log.Printf("🚀 question service listening on server %s", port)
+	err := http.ListenAndServe(":"+port, router)
 	if err != nil {
 		log.Fatal("❌ Server failed to start:", err)
 	}

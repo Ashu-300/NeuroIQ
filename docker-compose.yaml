@@ -152,14 +152,11 @@ services:
     entrypoint: >
       sh -c "
         ollama serve &
-        sleep 5 &&
+        sleep 10 &&
         ollama pull llama3 &&
         wait
       "
 
-
-
-    
 volumes:
   mongo_data:
   postgres_data:
