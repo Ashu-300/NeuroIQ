@@ -1,0 +1,11 @@
+﻿pystray
+pillow
+python-jose
+mediapipe==0.10.9
+opencv-python>=4.8.0
+sounddevice>=0.4.6
+virtualenv>=20.24.0
+matplotlib>=3.7.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-socketio[client]>=5.11.0

@@ -1,0 +1,6 @@
+*.bak
+__pycache__/
+dist
+build
+venv
+.env
