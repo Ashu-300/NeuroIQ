@@ -11,6 +11,11 @@ const normalizeId = (value) => {
   return String(value);
 };
 
+// Local storage key helper for saving in-progress evaluations
+// Use URL params (examId, sessionId, studentId) so the key stays stable across refreshes
+const getEvaluationDraftKey = (examId, sessionId, studentId) => 
+  `exam_evaluation_draft:${examId || 'no-exam'}:${sessionId || 'no-session'}:${studentId || 'no-student'}`;
+
 const EvaluateSubmissionPage = () => {
   const { examId, sessionId, studentId } = useParams();
   const navigate = useNavigate();
@@ -73,15 +78,35 @@ const EvaluateSubmissionPage = () => {
       
       // Initialize theory evaluations from existing answers (for new evaluations)
       if (data?.answers?.theory_answers) {
-        const initialEvals = {};
-        data.answers.theory_answers.forEach((answer) => {
-          const qId = normalizeId(answer.question_id);
-          initialEvals[qId] = {
-            obtained_marks: 0,
-            max_marks: answer.max_marks || 5,
-            feedback: '',
-          };
-        });
+        let initialEvals = {};
+
+        // Try to load any saved draft from local storage first
+        try {
+          // Load any saved draft using stable URL-based key (examId, sessionId, studentId)
+          const draftKey = getEvaluationDraftKey(examId, sessionId, studentId);
+          const draftStr = window?.localStorage?.getItem(draftKey);
+          if (draftStr) {
+            const draft = JSON.parse(draftStr);
+            if (draft && draft.theoryEvaluations) {
+              initialEvals = draft.theoryEvaluations;
+            }
+          }
+        } catch (storageErr) {
+          console.error('Failed to load evaluation draft from local storage:', storageErr);
+        }
+
+        // If no draft found, initialize fresh evaluations
+        if (!initialEvals || Object.keys(initialEvals).length === 0) {
+          data.answers.theory_answers.forEach((answer) => {
+            const qId = normalizeId(answer.question_id);
+            initialEvals[qId] = {
+              obtained_marks: 0,
+              max_marks: answer.max_marks || 5,
+              feedback: '',
+            };
+          });
+        }
+
         setTheoryEvaluations(initialEvals);
       }
     } catch (err) {
@@ -91,6 +116,23 @@ const EvaluateSubmissionPage = () => {
       setLoading(false);
     }
   };
+
+  // Persist in-progress theory evaluations to local storage to survive refresh
+  useEffect(() => {
+    if (!submission || isViewMode) return;
+    if (!submission.answers?.theory_answers?.length) return;
+
+    try {
+      // Save draft using stable URL-based key (examId, sessionId, studentId)
+      const draftKey = getEvaluationDraftKey(examId, sessionId, studentId);
+      const payload = {
+        theoryEvaluations,
+      };
+      window?.localStorage?.setItem(draftKey, JSON.stringify(payload));
+    } catch (err) {
+      console.error('Failed to save evaluation draft to local storage:', err);
+    }
+  }, [theoryEvaluations, submission, examId, sessionId, studentId, isViewMode]);
 
   const handleTheoryMarksChange = (questionId, field, value) => {
     if (isViewMode) return; // Don't allow changes in view mode
@@ -165,6 +207,14 @@ const EvaluateSubmissionPage = () => {
         theory_evaluations: theoryEvals,
         mcq_evaluations: mcqEvals,
       });
+
+      // Clear only this evaluation's draft from local storage on successful submit
+      try {
+        const draftKey = getEvaluationDraftKey(examId, sessionId, studentId);
+        window?.localStorage?.removeItem(draftKey);
+      } catch (storageErr) {
+        console.error('Failed to clear evaluation draft from local storage:', storageErr);
+      }
 
       setShowSuccessModal(true);
     } catch (err) {

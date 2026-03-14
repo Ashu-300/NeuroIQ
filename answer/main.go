@@ -2,6 +2,7 @@ package main
 
 import (
 	"answer/src/db"
+	"answer/src/grpcclient"
 	"answer/src/routes"
 	"fmt"
 	"log"
@@ -10,12 +11,21 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("⚠️ Error loading .env file:", err)
+	}
 
 	db.MongoInit()
+	err = grpcclient.InitGRPC()
+	if err != nil {
+		log.Fatal("❌ Failed to initialize gRPC:", err)
+	}
+
 
 	router := chi.NewRouter()
 
@@ -37,7 +47,7 @@ func main() {
 	}
 
 	fmt.Printf("🚀 Answer service running on port %s\n", port)
-	err := http.ListenAndServe(":"+port, router)
+	err = http.ListenAndServe(":"+port, router)
 	if err != nil {
 		log.Fatal("⚠️ Error starting server:", err)
 	}

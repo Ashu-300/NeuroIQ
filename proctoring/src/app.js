@@ -1,23 +1,18 @@
-/**
- * Express application factory and setup
- */
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
-const settings = require('./config/config');
-const logger = require('./config/logger');
-const { connectDB, disconnectDB } = require('./db/mongo');
+const path = require('path'); 
 const examRoutes = require('./routes/examRoutes');
 const proctorRoutes = require('./routes/proctorRoutes');
 const submissionRoutes = require('./routes/submissionRoutes');
-const { setupWebSocket } = require('./websocket/proctoring');
-const { initializeFaceApi } = require('./proctoring/faceApiSetup');
+const { setupSocketIO } = require('./websocket/proctoring');
+const { connectDB } = require('./db/mongo');
+const morgan = require("morgan");
 
-/**
- * Create and configure Express application
- */
 function createApp() {
     const app = express();
+
+    connectDB();
 
     // Middleware
     app.use(cors({
@@ -26,92 +21,37 @@ function createApp() {
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization'],
     }));
-    app.use(express.json({ limit: '50mb' }));
-    app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+    app.use(express.json({ }));
+    app.use(express.urlencoded({ extended: true }));
+
+    app.use(morgan("dev"));
+
+    
     // Routes
     app.use('/api/proctoring/exam', examRoutes);
     app.use('/api/proctoring/proctor', proctorRoutes);
     app.use('/api/proctoring/submission', submissionRoutes);
 
-    // Health check
-    app.get('/health', (req, res) => {
-        res.json({
-            status: 'healthy',
-            service: settings.SERVICE_NAME,
-            version: '1.0.0',
+    app.get("/api/proctoring/download-agent", (req, res) => {
+        const filePath = path.join(__dirname, "..", "downloads", "neuroiq-proctor.zip");
+
+        res.download(filePath, "neuroiq-proctor.zip", (err) => {
+            if (err) {
+                console.error("Download error:", err);
+                res.status(404).json({ error: "File not found" });
+            }
         });
     });
 
-    // Root endpoint
-    app.get('/', (req, res) => {
-        res.json({
-            service: settings.SERVICE_NAME,
-            description: 'Online examination with AI-based proctoring',
-            version: '1.0.0',
-            endpoints: {
-                health: '/health',
-                exam: '/api/proctoring/exam',
-                proctor: '/api/proctoring/proctor',
-                submission: '/api/proctoring/submission',
-                websocket_proctor: `ws://localhost:${settings.SERVICE_PORT}/ws/proctor/{session_id}`,
-            },
-        });
-    });
 
     // Create HTTP server
     const server = http.createServer(app);
 
-    // Setup WebSocket
-    setupWebSocket(server);
+    // Setup Socket.IO
+    setupSocketIO(server);
 
-    // Start server
-    async function start() {
-        try {
-            // Connect to MongoDB
-            await connectDB();
-
-            // Initialize Face API for proctoring
-            logger.info('Initializing Face API...');
-            const faceApiReady = await initializeFaceApi();
-            if (faceApiReady) {
-                logger.info('Face API initialized successfully');
-            } else {
-                logger.warning('Face API initialization failed, using fallback detection');
-            }
-
-            server.listen(settings.SERVICE_PORT, () => {
-                logger.info(`Starting ${settings.SERVICE_NAME} service on port ${settings.SERVICE_PORT}`);
-                logger.info(`API docs available at http://localhost:${settings.SERVICE_PORT}/`);
-                logger.info(`WebSocket endpoint: ws://localhost:${settings.SERVICE_PORT}/ws/proctor/{session_id}`);
-            });
-        } catch (error) {
-            logger.error(`Failed to start server: ${error.message}`);
-            process.exit(1);
-        }
-    }
-
-    // Graceful shutdown
-    process.on('SIGTERM', async () => {
-        logger.info(`Shutting down ${settings.SERVICE_NAME} service`);
-        await disconnectDB();
-        server.close(() => {
-            process.exit(0);
-        });
-    });
-
-    process.on('SIGINT', async () => {
-        logger.info(`Shutting down ${settings.SERVICE_NAME} service`);
-        await disconnectDB();
-        server.close(() => {
-            process.exit(0);
-        });
-    });
-
-    // Start the server
-    start();
-
-    return app;
+    return { app, server };
 }
 
 module.exports = { createApp };

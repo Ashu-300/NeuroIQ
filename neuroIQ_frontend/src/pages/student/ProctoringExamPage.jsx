@@ -1,9 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { submitExam, endExamSession, getExamStatus } from '../../api/proctoring.api';
+import { 
+  submitExam, 
+  endExamSession, 
+  getExamStatus,
+  checkAgentConnected,
+  startProctoringAgent,
+  getAgentStatus,
+  stopProctoringAgent,
+  getExamReport,
+  getPersistedActiveSession,
+  clearPersistedActiveSession,
+} from '../../api/proctoring.api';
 import { submitExamAnswers } from '../../api/answer.api';
 import { getExam } from '../../api/question.api';
-import { useCamera, useWebSocket } from '../../hooks';
 import { Button, Card, CardTitle, Loader, Modal } from '../../components/ui';
 import { Toast } from '../../components/feedback';
 
@@ -53,18 +63,14 @@ const ProctoringExamPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const exam = location.state?.exam;
-  const sessionId = location.state?.session_id;
+  const persistedSession = getPersistedActiveSession();
+  const sessionIdFromState = location.state?.session_id;
+  const sessionId = sessionIdFromState || persistedSession?.session_id;
   const faceImage = location.state?.faceImage;
   const startTime = location.state?.start_time;
 
-  const { videoRef, isActive: cameraReady, startCamera, stopCamera, captureFrame } = useCamera();
-  const {
-    isConnected,
-    lastMessage,
-    connect,
-    disconnect,
-    sendFrame,
-  } = useWebSocket(sessionId);
+  // Agent connection state (replaces webcam/websocket)
+  const [agentConnected, setAgentConnected] = useState(false);
 
   // Calculate initial time left based on exam end_time
   const calculateInitialTimeLeft = () => {
@@ -125,18 +131,230 @@ const ProctoringExamPage = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [examStarted, setExamStarted] = useState(false);
   const [showFullscreenWarning, setShowFullscreenWarning] = useState(false);
+  const [showAgentWarning, setShowAgentWarning] = useState(false);
+  const [isPreflightChecking, setIsPreflightChecking] = useState(true);
+  const [isPreflightReady, setIsPreflightReady] = useState(false);
+  const [preflightError, setPreflightError] = useState('');
+  const [preflightAttempt, setPreflightAttempt] = useState(0);
+  const [isConnectingProctoring, setIsConnectingProctoring] = useState(false);
 
-  const frameIntervalRef = useRef(null);
   const timerRef = useRef(null);
   const containerRef = useRef(null);
+  const agentCheckIntervalRef = useRef(null);
 
-  // Start camera on mount
+  const stopAgentSafely = useCallback(async () => {
+    try {
+      await stopProctoringAgent();
+    } catch (agentErr) {
+      console.error('Failed to stop proctoring agent:', agentErr);
+    }
+  }, []);
+
+  const cleanupRunningIntervals = useCallback(() => {
+    if (agentCheckIntervalRef.current) clearInterval(agentCheckIntervalRef.current);
+    if (timerRef.current) clearInterval(timerRef.current);
+  }, []);
+
+  const getStudentId = useCallback(() => {
+    const storedProfile = localStorage.getItem('neuroiq_student_profile');
+    if (storedProfile) {
+      const profile = JSON.parse(storedProfile);
+      return profile._id || profile.id || profile.student_id;
+    }
+
+    const authData = localStorage.getItem('neuroiq_auth');
+    if (authData) {
+      const auth = JSON.parse(authData);
+      return auth.userId || auth.user_id || auth.id;
+    }
+
+    return null;
+  }, []);
+
+  const connectToProctoring = useCallback(async () => {
+    if (!exam || !sessionId) return;
+
+    setIsConnectingProctoring(true);
+    setPreflightError('');
+
+    try {
+      const examId = exam.schedule_id || exam.id || exam.exam_id || exam.question_bank_id;
+      // Local agent derives student_id from JWT; only session_id and exam_id are required
+      await startProctoringAgent(sessionId, null, examId);
+
+      // Re-run /status verification sequence.
+      setPreflightAttempt((prev) => prev + 1);
+    } catch (err) {
+      const isNetworkError =
+        err?.code === 'ERR_NETWORK' ||
+        (typeof err?.message === 'string' && err.message.toLowerCase().includes('network error'));
+
+      const message = isNetworkError
+        ? 'Cannot reach the NeuroIQ Proctoring Agent. Please make sure the agent is running on your computer, then try again.'
+        : err?.data?.detail ||
+          err?.response?.data?.detail ||
+          err?.message ||
+          'Failed to connect to proctoring.';
+
+      setPreflightError(message);
+    } finally {
+      setIsConnectingProctoring(false);
+    }
+  }, [exam, sessionId]);
+
+  // Mandatory preflight on instruction page before allowing exam start.
+  // This uses local agent /status only; /start and /start-proctoring are called before reaching this page.
   useEffect(() => {
-    startCamera();
-    return () => {
-      stopCamera();
+    if (!exam || !sessionId || examStarted) return;
+
+    let cancelled = false;
+
+    const runPreflight = async () => {
+      setIsPreflightChecking(true);
+      setIsPreflightReady(false);
+      setPreflightError('');
+
+      try {
+        let verified = false;
+        let lastStatus = null;
+        for (let attempt = 1; attempt <= 8; attempt += 1) {
+          const status = await getAgentStatus();
+          lastStatus = status;
+          if (
+            status?.agent_running === true &&
+            status?.socketio_connected === true &&
+            status?.session_id === sessionId
+          ) {
+            verified = true;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+
+        if (!verified) {
+          let friendlyMessage = '';
+
+          if (!lastStatus) {
+            // Could not get any status from local agent (likely not running or unreachable)
+            friendlyMessage =
+              'Cannot reach the NeuroIQ Proctoring Agent. Please make sure the agent is downloaded and running, then retry.';
+          } else if (lastStatus?.agent_running && !lastStatus?.socketio_connected) {
+            // Agent is running but cannot connect its Socket.IO client to the backend
+            friendlyMessage =
+              'Proctoring connection failed. The agent could not connect to the exam server. Please check your internet connection and try again.';
+          } else if (lastStatus?.agent_running === false) {
+            // Agent explicitly reports that it is not running
+            friendlyMessage =
+              'NeuroIQ Proctoring Agent is not running. Please start the agent and try again.';
+          } else {
+            // Generic fallback for any other preflight failure
+            friendlyMessage =
+              'Proctoring agent is not ready yet. Please restart the agent and retry.';
+          }
+
+          throw new Error(friendlyMessage);
+        }
+
+        if (cancelled) return;
+        setAgentConnected(true);
+        setIsPreflightReady(true);
+      } catch (err) {
+        if (cancelled) return;
+        const isNetworkError =
+          err?.code === 'ERR_NETWORK' ||
+          (typeof err?.message === 'string' && err.message.toLowerCase().includes('network error'));
+
+        const message = isNetworkError
+          ? 'Cannot reach the NeuroIQ Proctoring Agent. Please make sure the agent is running on your computer, then try again.'
+          : err?.message || 'Pre-check failed. Please retry.';
+
+        setPreflightError(message);
+        setIsPreflightReady(false);
+      } finally {
+        if (!cancelled) {
+          setIsPreflightChecking(false);
+        }
+      }
     };
-  }, [startCamera, stopCamera]);
+
+    runPreflight();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [exam, examStarted, preflightAttempt, sessionId]);
+
+  // If session_id is missing or doesn't match current exam, return to exam list.
+  useEffect(() => {
+    if (!exam) {
+      navigate('/student/exams');
+      return;
+    }
+
+    if (!sessionId) {
+      setToast({
+        show: true,
+        message: 'Exam session not found. Please start your exam again.',
+        type: 'error',
+      });
+      setTimeout(() => navigate('/student/exams'), 1200);
+      return;
+    }
+
+    if (persistedSession?.exam_id && persistedSession.exam_id !== (exam.schedule_id || exam.id || exam.exam_id || exam.question_bank_id)) {
+      setToast({
+        show: true,
+        message: 'Session mismatch detected. Please restart the exam flow.',
+        type: 'error',
+      });
+      setTimeout(() => navigate('/student/exams'), 1200);
+    }
+  }, [exam, navigate, persistedSession, sessionId]);
+
+  // Check agent connection status periodically
+  useEffect(() => {
+    if (!examStarted || !sessionId) return;
+
+    const checkAgentStatus = async () => {
+      try {
+        const status = await checkAgentConnected(sessionId);
+        const wasConnected = agentConnected;
+        setAgentConnected(status.agent_connected);
+        
+        if (wasConnected && !status.agent_connected) {
+          // Agent disconnected during exam
+          console.warn('Proctoring agent disconnected!');
+          setShowAgentWarning(true);
+          setViolations((prev) => [
+            ...prev,
+            { time: new Date().toISOString(), message: 'Proctoring agent disconnected' },
+          ]);
+          setToast({
+            show: true,
+            message: 'Warning: Proctoring agent disconnected!',
+            type: 'error',
+          });
+        } else if (!wasConnected && status.agent_connected) {
+          console.log('Agent connected to backend');
+          setShowAgentWarning(false);
+        }
+      } catch (err) {
+        console.error('Failed to check agent status:', err);
+      }
+    };
+
+    // Check immediately
+    checkAgentStatus();
+
+    // Then check every 10 seconds
+    agentCheckIntervalRef.current = setInterval(checkAgentStatus, 10000);
+
+    return () => {
+      if (agentCheckIntervalRef.current) {
+        clearInterval(agentCheckIntervalRef.current);
+      }
+    };
+  }, [examStarted, sessionId, agentConnected]);
 
   // Fetch questions
   useEffect(() => {
@@ -233,81 +451,6 @@ const ProctoringExamPage = () => {
     fetchQuestions();
   }, [exam, navigate]);
 
-  // Connect WebSocket
-  useEffect(() => {
-    if (sessionId && examStarted) {
-      connect();
-    }
-    return () => {
-      disconnect();
-    };
-  }, [sessionId, examStarted, connect, disconnect]);
-
-  // Send frames periodically
-  useEffect(() => {
-    if (cameraReady && isConnected && examStarted) {
-      frameIntervalRef.current = setInterval(() => {
-        const frame = captureFrame();
-        if (frame) {
-          sendFrame(frame);
-        }
-      }, 2000);
-    }
-
-    return () => {
-      if (frameIntervalRef.current) {
-        clearInterval(frameIntervalRef.current);
-      }
-    };
-  }, [cameraReady, isConnected, examStarted, captureFrame, sendFrame]);
-
-  // Handle proctoring violations from WebSocket
-  useEffect(() => {
-    if (lastMessage) {
-      try {
-        const data = typeof lastMessage === 'string' ? JSON.parse(lastMessage) : lastMessage;
-        
-        // Handle violation message from proctoring service
-        if (data.violation_message) {
-          setViolations((prev) => [
-            ...prev,
-            { time: new Date().toISOString(), message: data.violation_message },
-          ]);
-          setToast({
-            show: true,
-            message: `Warning: ${data.violation_message}`,
-            type: 'error',
-          });
-        }
-        
-        // Handle auto-submit triggered by proctoring
-        if (data.auto_submit || data.status === 'auto_submit') {
-          setToast({
-            show: true,
-            message: data.message || 'Exam auto-submitted due to violations',
-            type: 'error',
-          });
-          handleAutoSubmit();
-        }
-        
-        // Legacy: handle type === 'violation' format
-        if (data.type === 'violation') {
-          setViolations((prev) => [
-            ...prev,
-            { time: new Date().toISOString(), message: data.message },
-          ]);
-          setToast({
-            show: true,
-            message: `Warning: ${data.message}`,
-            type: 'error',
-          });
-        }
-      } catch (e) {
-        console.error('Failed to parse WebSocket message:', e);
-      }
-    }
-  }, [lastMessage]);
-
   // Timer
   useEffect(() => {
     if (!examStarted) return;
@@ -361,7 +504,9 @@ const ProctoringExamPage = () => {
             message: 'Exam session ended by server',
             type: 'error',
           });
+          await stopAgentSafely();
           await exitFullscreen();
+          clearPersistedActiveSession();
           navigate('/student/dashboard');
         }
       } catch (err) {
@@ -375,7 +520,7 @@ const ProctoringExamPage = () => {
     return () => {
       clearInterval(statusInterval);
     };
-  }, [examStarted, sessionId, violations.length, navigate]);
+  }, [examStarted, sessionId, violations.length, navigate, stopAgentSafely]);
 
   // Fullscreen change handler
   useEffect(() => {
@@ -648,15 +793,24 @@ const ProctoringExamPage = () => {
       const examIdForCache = exam.schedule_id || exam.id;
       markExamAsSubmittedInCache(examIdForCache);
 
-      // Clear intervals
-      if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
-      if (timerRef.current) clearInterval(timerRef.current);
-      disconnect();
+      // Step 6 + 7: stop local proctoring and fetch final report.
+      await stopAgentSafely();
+
+      let finalReport = null;
+      try {
+        finalReport = await getExamReport(sessionId);
+        console.log('Final proctoring report fetched:', finalReport);
+      } catch (reportErr) {
+        console.error('Final proctoring report is not available yet:', reportErr);
+      }
+
+      cleanupRunningIntervals();
       await exitFullscreen();
+      clearPersistedActiveSession();
 
       setToast({
         show: true,
-        message: 'Exam submitted successfully!',
+        message: finalReport ? 'Exam submitted and proctoring report generated.' : 'Exam submitted successfully!',
         type: 'success',
       });
 
@@ -672,6 +826,7 @@ const ProctoringExamPage = () => {
         type: 'error',
       });
     } finally {
+      await stopAgentSafely();
       setIsSubmitting(false);
       setShowSubmitModal(false);
     }
@@ -680,14 +835,7 @@ const ProctoringExamPage = () => {
   const handleEndExam = async () => {
     setIsSubmitting(true);
     try {
-      if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
-      if (timerRef.current) clearInterval(timerRef.current);
-
-      // Best effort: send one final frame before ending.
-      const finalFrame = captureFrame();
-      if (finalFrame && isConnected) {
-        sendFrame(finalFrame);
-      }
+      cleanupRunningIntervals();
 
       await endExamSession(sessionId);
       
@@ -695,8 +843,10 @@ const ProctoringExamPage = () => {
       const examIdForCache = exam.schedule_id || exam.id;
       markExamAsSubmittedInCache(examIdForCache);
       
-      disconnect();
+      await stopAgentSafely();
+      
       await exitFullscreen();
+      clearPersistedActiveSession();
 
       setToast({
         show: true,
@@ -711,7 +861,7 @@ const ProctoringExamPage = () => {
       }, 1200);
     } catch (err) {
       console.error('Failed to end exam cleanly:', err);
-      disconnect();
+      await stopAgentSafely();
       await exitFullscreen();
       setToast({
         show: true,
@@ -720,6 +870,7 @@ const ProctoringExamPage = () => {
       });
       setShowEndExamModal(false);
     } finally {
+      await stopAgentSafely();
       setIsSubmitting(false);
     }
   };
@@ -772,7 +923,7 @@ const ProctoringExamPage = () => {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-indigo-500">•</span>
-                  Your camera will be active for proctoring
+                  Ensure the NeuroIQ Proctoring Agent is running on your computer
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-indigo-500">•</span>
@@ -808,10 +959,36 @@ const ProctoringExamPage = () => {
               >
                 Cancel
               </Button>
-              <Button fullWidth onClick={enterFullscreen}>
-                Start Exam
+              <Button
+                fullWidth
+                onClick={enterFullscreen}
+                disabled={!isPreflightReady || isPreflightChecking}
+              >
+                {isPreflightChecking ? 'Preparing Proctoring...' : 'Start Exam'}
               </Button>
             </div>
+
+            {isPreflightChecking && (
+              <p className="text-sm text-blue-700">Checking agent health, starting proctoring, and verifying connection...</p>
+            )}
+
+            {!!preflightError && (
+              <div className="space-y-3">
+                <p className="text-sm text-red-600">{preflightError}</p>
+                <div className="flex gap-3 justify-center">
+                  <Button
+                    onClick={connectToProctoring}
+                    loading={isConnectingProctoring}
+                    disabled={isConnectingProctoring}
+                  >
+                    Connect To Proctoring
+                  </Button>
+                  <Button variant="outline" onClick={() => setPreflightAttempt((prev) => prev + 1)}>
+                    Retry Agent Check
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </Card>
       </div>
@@ -832,20 +1009,18 @@ const ProctoringExamPage = () => {
         </div>
 
         <div className="flex items-center gap-6">
-          {/* Camera Preview */}
-          <div className="relative w-20 h-14 rounded-lg overflow-hidden bg-black">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover"
-            />
-            <div
-              className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
-                isConnected ? 'bg-green-500' : 'bg-red-500'
-              }`}
-            />
+          {/* Agent Status */}
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+            agentConnected ? 'bg-green-100' : 'bg-red-100'
+          }`}>
+            <div className={`w-2 h-2 rounded-full ${
+              agentConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'
+            }`} />
+            <span className={`text-sm font-medium ${
+              agentConnected ? 'text-green-700' : 'text-red-700'
+            }`}>
+              {agentConnected ? 'Proctor Agent Active' : 'Agent Disconnected'}
+            </span>
           </div>
 
           {/* Timer */}
@@ -1105,6 +1280,26 @@ const ProctoringExamPage = () => {
           </p>
           <Button fullWidth onClick={enterFullscreen}>
             Return to Fullscreen
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Agent Disconnected Warning Modal */}
+      <Modal
+        isOpen={showAgentWarning}
+        onClose={() => {}}
+        title="⚠️ Proctoring Agent Disconnected"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            The proctoring agent has disconnected. This has been recorded as a violation.
+            Please ensure the NeuroIQ proctoring agent is running on your computer.
+          </p>
+          <p className="text-sm text-red-600">
+            The exam will continue, but your proctoring status will be flagged for review.
+          </p>
+          <Button fullWidth onClick={() => setShowAgentWarning(false)}>
+            I Understand
           </Button>
         </div>
       </Modal>

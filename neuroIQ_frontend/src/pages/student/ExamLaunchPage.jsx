@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getScheduledExams } from '../../api/management.api';
-import { getExamStatus, getMyExamStatus } from '../../api/proctoring.api';
+import { getExamStatus, getMyExamStatus, startExam, startProctoringAgent } from '../../api/proctoring.api';
 import { Button, Card, CardTitle, Loader, Select } from '../../components/ui';
-import { EmptyState } from '../../components/feedback';
+import { EmptyState, Toast } from '../../components/feedback';
 
 // LocalStorage key for caching submitted exams
 const SUBMITTED_EXAMS_KEY = 'neuroiq_submitted_exams';
@@ -18,6 +18,7 @@ const ExamLaunchPage = () => {
   const [error, setError] = useState('');
   const [branch, setBranch] = useState('');
   const [semester, setSemester] = useState('');
+  const [toast, setToast] = useState({ show: false, message: '', type: 'error' });
 
   // Get current student ID from localStorage
   const getStudentId = useCallback(() => {
@@ -280,10 +281,42 @@ const ExamLaunchPage = () => {
     });
   };
 
-  const handleStartExam = (exam) => {
-    setSelectedExam(exam);
-    // Navigate to identity verification first
-    navigate('/student/verify-identity', { state: { exam } });
+  const handleStartExam = async (exam) => {
+    try {
+      const examId = exam.schedule_id || exam.id || exam.exam_id || exam.question_bank_id;
+      const startResult = await startExam({ exam_id: examId });
+
+      if (!startResult?.session_id) {
+        const msg = 'Session could not be created. Please try again.';
+        setError(msg);
+        setToast({ show: true, message: msg, type: 'error' });
+        return;
+      }
+
+      // Try to start local proctoring, but do not block navigation to instruction page.
+      try {
+        await startProctoringAgent(startResult.session_id, null, examId);
+      } catch (agentErr) {
+        console.warn('Local proctoring agent failed before navigation:', agentErr);
+      }
+
+      setError('');
+      setSelectedExam(exam);
+      // Navigate directly to exam instructions; agent preflight runs there.
+      navigate('/student/proctoring-exam', {
+        state: {
+          exam,
+          session_id: startResult.session_id,
+          start_time: startResult.start_time,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to start exam flow:', err);
+      const detail = err.data?.detail || err.response?.data?.detail || err.message;
+      const msg = detail || 'Unable to start exam right now. Please try again.';
+      setError(msg);
+      setToast({ show: true, message: msg, type: 'error' });
+    }
   };
 
   const getStatusBadge = (status, examId, examStatus) => {
@@ -328,6 +361,16 @@ const ExamLaunchPage = () => {
 
   return (
     <div className="space-y-6">
+      {toast.show && (
+        <div className="fixed top-4 right-4 z-50">
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast((prev) => ({ ...prev, show: false }))}
+          />
+        </div>
+      )}
+
       <div>
         <h1 className="text-2xl font-bold text-gray-900">My Exams</h1>
         <p className="text-gray-500 mt-1">
@@ -356,60 +399,7 @@ const ExamLaunchPage = () => {
           <div>
             <h3 className="font-medium text-blue-800">Before starting an exam</h3>
             <ul className="mt-1 text-sm text-blue-700 list-disc list-inside space-y-1">
-        {/* Filters */}
-        <Card className="mt-2" padding="md">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-            <Select
-              label="Branch"
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              options={[
-                { value: '', label: 'Select Branch' },
-                { value: 'CSE', label: 'CSE' },
-                { value: 'IT', label: 'IT' },
-                { value: 'ECE', label: 'ECE' },
-                { value: 'MECH', label: 'MECH' },
-                { value: 'CIVIL', label: 'CIVIL' },
-                { value: 'EE', label: 'EE' },
-                { value: 'EC', label: 'EC' },
-              ]}
-            />
-            <Select
-              label="Semester"
-              value={semester}
-              onChange={(e) => setSemester(e.target.value)}
-              options={[
-                { value: '', label: 'Select Semester' },
-                { value: '1', label: '1st' },
-                { value: '2', label: '2nd' },
-                { value: '3', label: '3rd' },
-                { value: '4', label: '4th' },
-                { value: '5', label: '5th' },
-                { value: '6', label: '6th' },
-                { value: '7', label: '7th' },
-                { value: '8', label: '8th' },
-              ]}
-            />
-            <div className="space-y-2">
-              <Button
-                className="w-full md:w-auto"
-                onClick={() => {
-                  if (branch && semester) {
-                    fetchExams(branch, semester);
-                  }
-                }}
-                disabled={!branch || !semester}
-              >
-                Load Exams
-              </Button>
-              <p className="text-xs text-gray-500">
-                Select your branch and semester to see scheduled exams.
-              </p>
-            </div>
-          </div>
-        </Card>
-
-              <li>Ensure your webcam is working properly</li>
+              <li>Download and run the NeuroIQ Proctoring Agent</li>
               <li>Find a quiet, well-lit place</li>
               <li>Close all other applications</li>
               <li>Keep your ID card ready for verification</li>
@@ -418,11 +408,87 @@ const ExamLaunchPage = () => {
         </div>
       </Card>
 
-      {error && (
-        <Card>
-          <p className="text-red-600 text-sm text-center py-2">{error}</p>
-        </Card>
-      )}
+      {/* Proctoring Agent Download */}
+      <Card className="border-indigo-200 bg-indigo-50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-medium text-indigo-800">Proctoring Agent Required</h3>
+              <p className="mt-1 text-sm text-indigo-700">
+                Download and run the proctoring agent before starting your exam.
+                The agent monitors your session and must remain running throughout the exam.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            className="ml-4 border-indigo-300 text-indigo-700 hover:bg-indigo-100"
+            onClick={() => {
+              window.open('/api/proctoring/download-agent', '_blank');
+            }}
+          >
+            Download Agent
+          </Button>
+        </div>
+      </Card>
+
+      {/* Filters */}
+      <Card className="mt-2" padding="md">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <Select
+            label="Branch"
+            value={branch}
+            onChange={(e) => setBranch(e.target.value)}
+            options={[
+              { value: '', label: 'Select Branch' },
+              { value: 'CSE', label: 'CSE' },
+              { value: 'IT', label: 'IT' },
+              { value: 'ECE', label: 'ECE' },
+              { value: 'MECH', label: 'MECH' },
+              { value: 'CIVIL', label: 'CIVIL' },
+              { value: 'EE', label: 'EE' },
+              { value: 'EC', label: 'EC' },
+            ]}
+          />
+          <Select
+            label="Semester"
+            value={semester}
+            onChange={(e) => setSemester(e.target.value)}
+            options={[
+              { value: '', label: 'Select Semester' },
+              { value: '1', label: '1st' },
+              { value: '2', label: '2nd' },
+              { value: '3', label: '3rd' },
+              { value: '4', label: '4th' },
+              { value: '5', label: '5th' },
+              { value: '6', label: '6th' },
+              { value: '7', label: '7th' },
+              { value: '8', label: '8th' },
+            ]}
+          />
+          <div className="space-y-2">
+            <Button
+              className="w-full md:w-auto"
+              onClick={() => {
+                if (branch && semester) {
+                  fetchExams(branch, semester);
+                }
+              }}
+              disabled={!branch || !semester}
+            >
+              Load Exams
+            </Button>
+            <p className="text-xs text-gray-500">
+              Select your branch and semester to see scheduled exams.
+            </p>
+          </div>
+        </div>
+      </Card>
 
       {exams.length === 0 && !error ? (
         <EmptyState

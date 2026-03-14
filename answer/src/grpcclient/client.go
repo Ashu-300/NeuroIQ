@@ -23,40 +23,17 @@ var (
 // GetLLMServiceAddress returns the LLM gRPC server address
 func GetLLMServiceAddress() string {
 	addr := os.Getenv("LLM_GRPC_ADDRESS")
-	if addr == "" {
-		addr = "localhost:50051"
-	}
+	// if addr == "" {
+	// 	addr = "localhost:50051"
+	// }
 	return addr
 }
 
 // GetClient returns singleton gRPC client
 func GetClient() (pb.EvaluationServiceClient, error) {
 
-	clientOnce.Do(func() {
-
-		addr := GetLLMServiceAddress()
-
-		fmt.Printf("🔗 Connecting to LLM gRPC service at %s\n", addr)
-
-		var err error
-		conn, err = grpc.Dial(
-			addr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		)
-
-		if err != nil {
-			clientErr = fmt.Errorf("failed to connect to LLM service: %w", err)
-			return
-		}
-
-		client = pb.NewEvaluationServiceClient(conn)
-
-		fmt.Println("✅ Connected to LLM gRPC service")
-
-	})
-
-	if clientErr != nil {
-		return nil, clientErr
+	if client == nil {
+		return nil, fmt.Errorf("gRPC client not initialized")
 	}
 
 	return client, nil
@@ -130,4 +107,35 @@ func EvaluateMCQAnswer(
 	}
 
 	return c.EvaluateMCQAnswer(ctx, req)
+}
+
+
+// InitGRPC initializes the gRPC connection at service startup
+func InitGRPC() error {
+
+	addr := GetLLMServiceAddress()
+
+	fmt.Printf("🔗 Initializing gRPC connection to %s\n", addr)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var err error
+
+	conn, err = grpc.DialContext(
+		ctx,
+		addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(), // IMPORTANT: wait until connection is established
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to connect to LLM service: %w", err)
+	}
+
+	client = pb.NewEvaluationServiceClient(conn)
+
+	fmt.Println("✅ gRPC connection established")
+
+	return nil
 }

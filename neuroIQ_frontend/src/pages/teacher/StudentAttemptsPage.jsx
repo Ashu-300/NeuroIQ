@@ -12,6 +12,14 @@ const normalizeId = (value) => {
   return String(value);
 };
 
+// Helper to format cheating probability (0-1 range → percentage)
+const formatProbability = (value) => {
+  if (value === null || value === undefined) return 'N/A';
+  const num = Number(value);
+  if (Number.isNaN(num)) return 'N/A';
+  return `${(num * 100).toFixed(1)}%`;
+};
+
 const StudentAttemptsPage = () => {
   const { examId } = useParams();
   const navigate = useNavigate();
@@ -93,11 +101,15 @@ const StudentAttemptsPage = () => {
     }
   };
 
-  const handleViewReport = async (sessionId) => {
+  const handleViewReport = async (student) => {
     try {
       setReportLoading(true);
       setShowReportModal(true);
-      const report = await getProctoringReport(sessionId);
+      const report = await getProctoringReport({
+        examId,
+        studentId: student.student_id,
+        sessionId: student.session_id,
+      });
       setSelectedReport(report);
     } catch (error) {
       console.error('Failed to fetch report:', error);
@@ -112,16 +124,6 @@ const StudentAttemptsPage = () => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}m ${secs}s`;
-  };
-
-  const getSeverityColor = (severity) => {
-    switch (severity?.toLowerCase()) {
-      case 'critical': return 'bg-red-100 text-red-800';
-      case 'high': return 'bg-orange-100 text-orange-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
   };
 
   const getStatusColor = (status) => {
@@ -216,7 +218,6 @@ const StudentAttemptsPage = () => {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Time</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Identity</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Warnings</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Violations</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -247,23 +248,6 @@ const StudentAttemptsPage = () => {
                         {report ? formatDuration(report.duration_seconds) : 'N/A'}
                       </td>
                       <td className="px-4 py-4">
-                        {student.identity_verified ? (
-                          <span className="flex items-center text-green-600">
-                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                            Verified
-                          </span>
-                        ) : (
-                          <span className="flex items-center text-red-600">
-                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                            </svg>
-                            Not Verified
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4">
                         <span className={`px-2 py-1 text-xs rounded-full ${
                           student.warnings > 2 ? 'bg-red-100 text-red-800' :
                           student.warnings > 0 ? 'bg-yellow-100 text-yellow-800' :
@@ -284,7 +268,7 @@ const StudentAttemptsPage = () => {
                           <Button
                             size="sm"
                             variant="secondary"
-                            onClick={() => handleViewReport(student.session_id)}
+                            onClick={() => handleViewReport(student)}
                             disabled={!hasReport && student.status === 'active'}
                           >
                             {hasReport ? 'View Report' : 'No Report'}
@@ -352,7 +336,7 @@ const StudentAttemptsPage = () => {
           ) : selectedReport ? (
             <>
               {/* Report Summary */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
                 <div>
                   <p className="text-xs text-gray-500 uppercase">Status</p>
                   <span className={`px-2 py-1 text-sm rounded-full ${getStatusColor(selectedReport.status)}`}>
@@ -371,6 +355,18 @@ const StudentAttemptsPage = () => {
                   <p className="text-xs text-gray-500 uppercase">Identity</p>
                   <p className={`font-medium ${selectedReport.identity_verified ? 'text-green-600' : 'text-red-600'}`}>
                     {selectedReport.identity_verified ? 'Verified' : 'Not Verified'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase">Avg. Cheating Probability</p>
+                  <p className="font-medium text-indigo-600">
+                    {formatProbability(selectedReport.average_cheating_probability)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase">Max Cheating Probability</p>
+                  <p className="font-medium text-indigo-600">
+                    {formatProbability(selectedReport.max_cheating_probability)}
                   </p>
                 </div>
               </div>
@@ -394,26 +390,22 @@ const StudentAttemptsPage = () => {
               {/* Violations List */}
               <div>
                 <h4 className="font-medium text-gray-900 mb-3">
-                  Violations ({selectedReport.violations?.length || 0})
+                  Violations ({Array.isArray(selectedReport.violations) ? selectedReport.violations.length : 0})
                 </h4>
-                {selectedReport.violations?.length > 0 ? (
+                {Array.isArray(selectedReport.violations) && selectedReport.violations.length > 0 ? (
                   <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {selectedReport.violations.map((violation, idx) => (
+                    {selectedReport.violations.map((violationId, idx) => (
                       <div
-                        key={idx}
+                        key={violationId || idx}
                         className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
                       >
                         <div className="flex items-center gap-3">
-                          <span className={`px-2 py-1 text-xs rounded-full ${getSeverityColor(violation.severity)}`}>
-                            {violation.severity}
+                          <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
+                            #{idx + 1}
                           </span>
-                          <span className="font-medium text-gray-900">
-                            {violation.violation_type?.replace(/_/g, ' ')}
+                          <span className="font-mono text-sm text-gray-900">
+                            {String(violationId).slice(0, 12)}...
                           </span>
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {violation.timestamp ? new Date(violation.timestamp).toLocaleTimeString() : ''}
-                          {violation.duration_seconds && ` (${violation.duration_seconds.toFixed(1)}s)`}
                         </div>
                       </div>
                     ))}

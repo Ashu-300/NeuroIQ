@@ -11,7 +11,7 @@ import { LoginPage, SignupPage } from '../pages/auth';
 // Dashboard Pages
 import { Dashboard as AdminDashboard, RoomManagementPage, SeatingGenerationPage, AttendancePage } from '../pages/admin';
 import { Dashboard as TeacherDashboard, UploadSyllabusPage, GenerateFromTextPage, GeneratedQuestionsPage, GeneratedMCQPage, QuestionBankPage, CreateExamPage, ExamListPage, ScheduledExamsPage, StudentAttemptsPage, EvaluateSubmissionPage } from '../pages/teacher';
-import { Dashboard as StudentDashboard, ExamLaunchPage, IdentityVerificationPage, ProctoringExamPage, StudentRegistrationPage } from '../pages/student';
+import { Dashboard as StudentDashboard, ExamLaunchPage, ProctoringExamPage, StudentRegistrationPage, StudentReportsPage } from '../pages/student';
 import ProfilePage from '../pages/ProfilePage';
 
 const Router = () => {
@@ -82,9 +82,8 @@ const Router = () => {
           <Route path="dashboard" element={<StudentDashboard />} />
           <Route path="registration" element={<StudentRegistrationPage />} />
           <Route path="exams" element={<ExamLaunchPage />} />
-          <Route path="verify-identity" element={<IdentityVerificationPage />} />
           <Route path="proctoring-exam" element={<ProctoringExamPage />} />
-          <Route path="reports" element={<div className="p-4">Exam Reports (Coming Soon)</div>} />
+          <Route path="reports" element={<StudentReportsPage />} />
         </Route>
 
         {/* Profile Route - accessible by all authenticated users */}

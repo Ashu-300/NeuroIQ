@@ -1,186 +1,165 @@
+import axios from 'axios';
 import createAxiosInstance from './axios';
-import { API_BASE_URLS } from '../utils/constants';
+import { API_BASE_URLS, PROCTOR_AGENT, STORAGE_KEYS } from '../utils/constants';
 
 const proctoringApi = createAxiosInstance(API_BASE_URLS.PROCTORING);
 
-/**
- * Get student's available exams
- * GET /api/proctoring/exam/student/list
- * Response: { exams: [{ id, title, subject, duration, total_marks, start_time, end_time, status, type }] }
- */
-export const getStudentExams = async () => {
-  const response = await proctoringApi.get('/api/proctoring/exam/student/list');
-  return response.data;
+const ACTIVE_SESSION_KEY = 'neuroiq_active_proctor_session';
+
+const readStoredSession = () => {
+	try {
+		const raw = localStorage.getItem(ACTIVE_SESSION_KEY);
+		return raw ? JSON.parse(raw) : null;
+	} catch {
+		return null;
+	}
 };
 
-/**
- * Get exam questions
- * GET /api/proctoring/exam/{exam_id}/questions
- * Response: { questions: [{ id, question, type, options?, marks }] }
- */
-export const getExamQuestions = async (examId) => {
-  const response = await proctoringApi.get(`/api/proctoring/exam/${examId}/questions`);
-  return response.data;
+export const persistActiveSession = (session) => {
+	if (!session?.session_id) return;
+	localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(session));
 };
 
-/**
- * Start exam session
- * POST /api/proctoring/exam/start
- * Request: { exam_id: string }
- * Response: { session_id: string, exam_id: string, start_time: string, status: string }
- */
-export const startExam = async (examData) => {
-  const response = await proctoringApi.post('/api/proctoring/exam/start', {
-    exam_id: examData.exam_id,
-  });
-  return response.data;
+export const getPersistedActiveSession = () => readStoredSession();
+
+export const clearPersistedActiveSession = () => {
+	localStorage.removeItem(ACTIVE_SESSION_KEY);
 };
 
-/**
- * Get exam session status
- * GET /api/proctoring/exam/status?session_id=xxx
- * Response: { session_id, status, start_time, elapsed_seconds, warnings }
- */
-export const getExamStatus = async (sessionId) => {
-  const response = await proctoringApi.get('/api/proctoring/exam/status', {
-    params: { session_id: sessionId }
-  });
-  return response.data;
+export const startExam = async ({ exam_id }) => {
+	const response = await proctoringApi.post('/api/proctoring/exam/start', { exam_id });
+	persistActiveSession({
+		session_id: response.data?.session_id,
+		exam_id: response.data?.exam_id,
+		start_time: response.data?.start_time,
+		status: response.data?.status,
+	});
+	return response.data;
 };
 
-/**
- * Verify identity during exam
- * POST /api/proctoring/proctor/verify-identity?session_id=xxx
- * Request: FormData with frame (webcam image file)
- * Response: { verified: boolean, message: string, session_id: string }
- */
-export const verifyIdentity = async (sessionId, frameData) => {
-  const formData = new FormData();
-  
-  // Convert base64 to blob if needed
-  if (typeof frameData === 'string' && frameData.startsWith('data:')) {
-    const frameBlob = await fetch(frameData).then(r => r.blob());
-    formData.append('frame', frameBlob, 'frame.jpg');
-  } else if (frameData instanceof Blob) {
-    formData.append('frame', frameData, 'frame.jpg');
-  } else {
-    formData.append('frame', frameData);
-  }
-
-  const response = await proctoringApi.post('/api/proctoring/proctor/verify-identity', formData, {
-    params: { session_id: sessionId },
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-  return response.data;
-};
-
-/**
- * Process video frame for proctoring (used with WebSocket fallback)
- * POST /api/proctoring/proctor/frame
- * Request: FormData with frame blob and session_id
- * Response: { status, processed, auto_submit, violation_message? }
- */
-export const sendProctoringFrame = async (frameBlob, sessionId) => {
-  const formData = new FormData();
-  formData.append('frame', frameBlob, 'frame.jpg');
-  formData.append('session_id', sessionId);
-
-  const response = await proctoringApi.post('/api/proctoring/proctor/frame', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-  return response.data;
-};
-
-/**
- * Submit exam
- * POST /api/proctoring/submission/submit
- * Request: { session_id: string }
- * Response: { session_id, status, submitted_at, total_warnings, violations_count }
- */
-export const submitExam = async (sessionId) => {
-  const response = await proctoringApi.post('/api/proctoring/submission/submit', {
-    session_id: sessionId,
-  });
-  return response.data;
-};
-
-/**
- * End exam session explicitly from UI (uses same submit endpoint)
- * POST /api/proctoring/submission/submit
- */
-export const endExamSession = async (sessionId) => {
-  const response = await proctoringApi.post('/api/proctoring/submission/submit', {
-    session_id: sessionId,
-  });
-  return response.data;
-};
-
-/**
- * Get exam report
- * GET /api/proctoring/submission/report/{session_id}
- * Response: { session_id, student_id, exam_id, start_time, end_time, duration_seconds, status, total_warnings, violations, identity_verified }
- */
-export const getExamReport = async (sessionId) => {
-  const response = await proctoringApi.get(`/api/proctoring/submission/report/${sessionId}`);
-  return response.data;
-};
-
-/**
- * Get students who attempted an exam
- * GET /api/proctoring/exam/{exam_id}/students
- * Response: { exam_id, total_students, students: [{ session_id, student_id, status, start_time, end_time, identity_verified, evaluation_status }] }
- */
-export const getExamStudents = async (examId) => {
-  const response = await proctoringApi.get(`/api/proctoring/exam/${examId}/students`);
-  return response.data;
-};
-
-/**
- * Get students with full proctoring reports for an exam
- * GET /api/proctoring/exam/{exam_id}/students/reports
- * Response: { exam_id, total_students, students: [{ session_id, student_id, status, proctoring_report }] }
- */
-export const getExamStudentsWithReports = async (examId) => {
-  const response = await proctoringApi.get(`/api/proctoring/exam/${examId}/students/reports`);
-  return response.data;
-};
-
-/**
- * Get proctoring report for a specific session
- * GET /api/proctoring/exam/report/{session_id}
- * Response: { session_id, student_id, exam_id, start_time, end_time, duration_seconds, status, total_warnings, violations, identity_verified }
- */
-export const getProctoringReport = async (sessionId) => {
-  const response = await proctoringApi.get(`/api/proctoring/exam/report/${sessionId}`);
-  return response.data;
-};
-
-/**
- * Check student's own status for a specific exam
- * GET /api/proctoring/exam/{exam_id}/my-status
- * Response: { exam_id, has_session, session_id?, status?, start_time?, can_attempt, message? }
- */
 export const getMyExamStatus = async (examId) => {
-  const response = await proctoringApi.get(`/api/proctoring/exam/${examId}/my-status`);
-  return response.data;
+	const response = await proctoringApi.get(`/api/proctoring/exam/${examId}/my-status`);
+	return response.data;
 };
 
-export default {
-  getStudentExams,
-  getExamQuestions,
-  startExam,
-  getExamStatus,
-  verifyIdentity,
-  sendProctoringFrame,
-  submitExam,
-  endExamSession,
-  getExamReport,
-  getExamStudents,
-  getExamStudentsWithReports,
-  getProctoringReport,
-  getMyExamStatus,
+export const getExamStatus = async (sessionId) => {
+	const response = await proctoringApi.get('/api/proctoring/exam/status', {
+		params: { session_id: sessionId },
+	});
+	return response.data;
 };
+
+export const submitExam = async (sessionId) => {
+	const response = await proctoringApi.post('/api/proctoring/submission/submit', {
+		session_id: sessionId,
+	});
+	return response.data;
+};
+
+// Keep this export for current UI usage; backend uses submit to end session.
+export const endExamSession = async (sessionId) => submitExam(sessionId);
+
+export const getExamReport = async (sessionId) => {
+	try {
+		const response = await proctoringApi.get(`/api/proctoring/exam/report/${sessionId}`);
+		return response.data;
+	} catch (primaryErr) {
+		const fallback = await proctoringApi.get(`/api/proctoring/submission/report/${sessionId}`);
+		return fallback.data;
+	}
+};
+
+export const getProctoringReport = async ({ examId, studentId, sessionId }) => {
+	if (examId && studentId) {
+		const response = await proctoringApi.get('/api/proctoring/proctor/report', {
+			params: {
+				exam_id: examId,
+				student_id: studentId,
+			},
+		});
+		return response.data?.report || response.data;
+	}
+
+	if (sessionId) {
+		return getExamReport(sessionId);
+	}
+
+	throw new Error('getProctoringReport requires examId+studentId or sessionId');
+};
+
+export const getExamStudentsWithReports = async (examId) => {
+	const response = await proctoringApi.get(`/api/proctoring/exam/${examId}/students/reports`);
+	return response.data;
+};
+
+export const checkAgentRunning = async () => {
+	const response = await axios.get(`${PROCTOR_AGENT.BASE_URL}/`, {
+		timeout: 5000,
+	});
+
+	const message = response?.data?.message;
+	const isRunning =
+		typeof message === 'string' &&
+		message.toLowerCase().includes('neuroiq proctoring agent is running');
+
+	return {
+		agent_running: isRunning,
+		message,
+	};
+};
+
+export const startProctoringAgent = async (sessionId, _studentId, examId) => {
+	const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+	const headers = {
+		'Content-Type': 'application/json',
+	};
+	if (token) {
+		headers.Authorization = `Bearer ${token}`;
+	}
+
+	const response = await axios.post(
+		`${PROCTOR_AGENT.BASE_URL}/start-proctoring`,
+		{
+			// Local agent derives student_id from JWT; only session_id and exam_id are required in body
+			session_id: sessionId,
+			exam_id: examId,
+		},
+		{
+			timeout: 15000,
+			headers,
+		}
+	);
+
+	return response.data;
+};
+
+export const getAgentStatus = async () => {
+	const response = await axios.get(`${PROCTOR_AGENT.BASE_URL}/status`, {
+		timeout: 8000,
+	});
+	return response.data;
+};
+
+export const checkAgentConnected = async (sessionId) => {
+	const status = await getAgentStatus();
+	const sameSession = !sessionId || status?.session_id === sessionId;
+	return {
+		agent_connected: Boolean(status?.agent_running && status?.socketio_connected && sameSession),
+		agent_running: Boolean(status?.agent_running),
+		socketio_connected: Boolean(status?.socketio_connected),
+		session_id: status?.session_id || null,
+	};
+};
+
+export const stopProctoringAgent = async () => {
+	const response = await axios.post(
+		`${PROCTOR_AGENT.BASE_URL}/stop-proctoring`,
+		{},
+		{
+			timeout: 10000,
+			headers: { 'Content-Type': 'application/json' },
+		}
+	);
+	return response.data;
+};
+

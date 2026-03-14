@@ -12,14 +12,9 @@ const settings = {
     JWT_ALGORITHM: process.env.JWT_ALGORITHM || 'HS256',
 
     MONGO_URI: process.env.MONGO_URI,
-    MONGO_DB: process.env.MONGO_DB || 'neuroiq_exam',
+    MONGO_DB: process.env.MONGO_DB || 'NeuroIQ_ProctoringDB',
 
-    FRAME_INTERVAL_SECONDS: parseFloat(process.env.FRAME_INTERVAL_SECONDS) || 2.0,
-    MAX_NO_FACE_SECONDS: parseFloat(process.env.MAX_NO_FACE_SECONDS) || 3.0,
-    MAX_LOOKING_AWAY_SECONDS: parseFloat(process.env.MAX_LOOKING_AWAY_SECONDS) || 3.0,
-    MAX_WARNINGS: parseInt(process.env.MAX_WARNINGS, 10) || 3,
-
-    LOG_LEVEL: process.env.LOG_LEVEL || 'INFO',
+    
 };
 
 module.exports = settings;

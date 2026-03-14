@@ -1,31 +1,17 @@
-/**
- * MongoDB connection
- */
-const mongoose = require('mongoose');
+const { config } = require("dotenv");
+const mongoose = require("mongoose");
 const settings = require('../config/config');
-const logger = require('../config/logger');
 
-async function connectDB() {
-    try {
-        const uri = `${settings.MONGO_URI}/${settings.MONGO_DB}`;
-        await mongoose.connect(uri);
-        logger.info(`MongoDB connected: ${settings.MONGO_DB}`);
-    } catch (error) {
-        logger.error(`MongoDB connection failed: ${error.message}`);
-        throw error;
-    }
-}
+const connectDB = async () => {
+  try {
+    mongouri = settings.MONGO_URI  
+    await mongoose.connect(mongouri);
 
-async function disconnectDB() {
-    try {
-        await mongoose.disconnect();
-        logger.info('MongoDB disconnected');
-    } catch (error) {
-        logger.error(`MongoDB disconnect error: ${error.message}`);
-    }
-}
-
-module.exports = {
-    connectDB,
-    disconnectDB,
+    console.log("✅ MongoDB Connected Successfully");
+  } catch (error) {
+    console.error(" ❌MongoDB Connection Error:", error);
+    process.exit(1);
+  }
 };
+
+module.exports = {connectDB};

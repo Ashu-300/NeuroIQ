@@ -9,14 +9,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
-	// "github.com/joho/godotenv"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	// err := godotenv.Load()
-	// if err != nil {
-	// 	log.Fatal("⚠️ Error loading .env file:", err)
-	// }
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("⚠️ Error loading .env file:", err)
+	}
 
 	db.ConnectDB()
 
@@ -38,8 +38,8 @@ func main() {
 	if port == "" {
 		port = "8001"
 	}
-	log.Printf("🚀 Auth serivce listening on server %s", port)
-	err := http.ListenAndServe(":"+port, router)
+	log.Printf("🚀 Auth service listening on server %s", port)
+	err = http.ListenAndServe(":"+port, router)
 	if err != nil {
 		log.Fatal("❌ Server failed to start:", err)
 	}

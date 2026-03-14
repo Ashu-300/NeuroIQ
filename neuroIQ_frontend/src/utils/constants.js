@@ -9,8 +9,15 @@ export const API_BASE_URLS = {
   ANSWER: import.meta.env.VITE_ANSWER_API_URL || 'http://localhost:80',
 };
 
-// WebSocket URL for proctoring
+// WebSocket URL for proctoring (kept for reference, no longer used by frontend)
 export const WS_PROCTORING_URL = import.meta.env.VITE_PROCTORING_WS_URL || 'ws://localhost:8000/ws/proctor';
+
+// Proctoring Agent Configuration
+export const PROCTOR_AGENT = {
+  BASE_URL: import.meta.env.VITE_PROCTOR_AGENT_URL || 'http://localhost:9000',
+  DOWNLOAD_URL: import.meta.env.VITE_PROCTOR_AGENT_DOWNLOAD_URL || 'http://localhost:8000/downloads/neuroiq-proctor.exe',
+  DOWNLOAD_ROUTE: import.meta.env.VITE_PROCTOR_AGENT_DOWNLOAD_ROUTE || 'http://localhost:8000/download-agent',
+};
 
 // User roles
 export const ROLES = {
