@@ -15,9 +15,10 @@ type MCQEvaluationInput struct {
 }
 
 type SubmitEvaluationRequest struct {
-	SubmissionID string `json:"submission_id" validate:"required"`
-	ExamID       string `json:"exam_id" validate:"required"`
-	StudentID    string `json:"student_id" validate:"required"`
+	SubmissionID   string `json:"submission_id" validate:"required"`
+	ExamID         string `json:"exam_id" validate:"required"`
+	ExamScheduleID string `json:"exam_schedule_id" validate:"required"`
+	StudentID      string `json:"student_id" validate:"required"`
 
 	Subject  string `json:"subject"`
 	Semester string `json:"semester"`
@@ -32,8 +33,6 @@ type SubmitEvaluationResponse struct {
 	Message      string `json:"message"`
 	EvaluationID string `json:"evaluation_id"`
 }
-
-
 
 type EvaluateTheoryRequest struct {
 	QuestionID   string `json:"question_id" validate:"required"`

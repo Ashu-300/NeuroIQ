@@ -163,10 +163,11 @@ const ExamLaunchPage = () => {
       // Fetch submission status for each exam using student_id + exam_id
       const studentId = getStudentId();
       const statusPromises = transformedExams.map(async (exam) => {
-        const examId = exam.schedule_id || exam.id;
+		const scheduleId = exam.schedule_id || exam.id;
+		const contentExamId = exam.question_bank_id || exam.exam_id || exam.id;
         
         // First check localStorage cache for this student + exam combination
-        if (isExamSubmittedInCache(examId)) {
+		if (isExamSubmittedInCache(scheduleId)) {
           return {
             examId: exam.id,
             status: {
@@ -181,12 +182,12 @@ const ExamLaunchPage = () => {
         
         try {
           // exam.id/schedule_id is the scheduled exam session identifier used by backend APIs.
-          // The API uses student_id from auth token + exam_id to check status
-          const myStatus = await getMyExamStatus(examId);
+      // The API uses student_id from auth token + exam_id (+ optional exam_schedule_id) to check status
+      const myStatus = await getMyExamStatus(contentExamId, scheduleId);
 
           // If status indicates submitted, cache it locally for future checks
           if (isSubmittedStatus(myStatus?.status) || myStatus?.can_attempt === false) {
-            markExamAsSubmittedInCache(examId);
+				markExamAsSubmittedInCache(scheduleId);
             return {
               examId: exam.id,
               status: {
@@ -203,7 +204,7 @@ const ExamLaunchPage = () => {
               
               // If session is submitted, cache it and mark as not attemptable
               if (isSubmittedStatus(sessionStatus?.status)) {
-                markExamAsSubmittedInCache(examId);
+					markExamAsSubmittedInCache(scheduleId);
                 return {
                   examId: exam.id,
                   status: {
@@ -243,7 +244,7 @@ const ExamLaunchPage = () => {
         } catch (err) {
           console.error(`Failed to fetch status for exam ${exam.id}:`, err);
           // On error, check cache again - if submitted there, block attempt
-          if (isExamSubmittedInCache(examId)) {
+			if (isExamSubmittedInCache(scheduleId)) {
             return {
               examId: exam.id,
               status: {
@@ -283,8 +284,9 @@ const ExamLaunchPage = () => {
 
   const handleStartExam = async (exam) => {
     try {
-      const examId = exam.schedule_id || exam.id || exam.exam_id || exam.question_bank_id;
-      const startResult = await startExam({ exam_id: examId });
+    const scheduleId = exam.schedule_id || exam.id;
+    const contentExamId = exam.question_bank_id || exam.exam_id || exam.id;
+    const startResult = await startExam({ exam_id: contentExamId, exam_schedule_id: scheduleId });
 
       if (!startResult?.session_id) {
         const msg = 'Session could not be created. Please try again.';
@@ -295,7 +297,7 @@ const ExamLaunchPage = () => {
 
       // Try to start local proctoring, but do not block navigation to instruction page.
       try {
-        await startProctoringAgent(startResult.session_id, null, examId);
+        await startProctoringAgent(startResult.session_id, null, scheduleId);
       } catch (agentErr) {
         console.warn('Local proctoring agent failed before navigation:', agentErr);
       }
@@ -381,7 +383,7 @@ const ExamLaunchPage = () => {
       {/* System Check Alert */}
       <Card className="border-blue-200 bg-blue-50">
         <div className="flex items-start gap-3">
-          <div className="flex-shrink-0">
+          <div className="shrink-0">
             <svg
               className="w-5 h-5 text-blue-600"
               fill="none"
@@ -412,7 +414,7 @@ const ExamLaunchPage = () => {
       <Card className="border-indigo-200 bg-indigo-50">
         <div className="flex items-center justify-between">
           <div className="flex items-start gap-3">
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>

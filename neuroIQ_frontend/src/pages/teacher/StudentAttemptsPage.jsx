@@ -76,14 +76,16 @@ const StudentAttemptsPage = () => {
       setLoading(true);
       
       // Fetch student attempts
-      const studentsData = await getExamStudentsWithReports(examId);
+		const contentExamId = questionBankId || examId;
+		const scheduleId = examId;
+		const studentsData = await getExamStudentsWithReports(contentExamId, scheduleId);
       const studentsList = studentsData.students || [];
       setStudents(studentsList);
 
       // Check evaluation status for each student (using question_bank_id)
       if (questionBankId && studentsList.length > 0) {
         const statusPromises = studentsList.map(async (student) => {
-          const isEvaluated = await checkStudentEvaluationExists(questionBankId, student.student_id);
+			const isEvaluated = await checkStudentEvaluationExists(questionBankId, student.student_id, examId);
           return { studentId: student.student_id, isEvaluated };
         });
         
@@ -105,10 +107,14 @@ const StudentAttemptsPage = () => {
     try {
       setReportLoading(true);
       setShowReportModal(true);
+    // examId (from URL) is the scheduled exam id; questionBankId is the content exam id
+    const contentExamId = questionBankId || examId;
+    const scheduleId = examId;
       const report = await getProctoringReport({
-        examId,
-        studentId: student.student_id,
-        sessionId: student.session_id,
+    examId: contentExamId,
+    examScheduleId: scheduleId,
+    studentId: student.student_id,
+    sessionId: student.session_id,
       });
       setSelectedReport(report);
     } catch (error) {

@@ -86,6 +86,11 @@ func StoreExamEvaluation(w http.ResponseWriter, r *http.Request) {
 
 	submissionID, _ := primitive.ObjectIDFromHex(req.SubmissionID)
 	examID, _ := primitive.ObjectIDFromHex(req.ExamID)
+	examScheduleID, err := primitive.ObjectIDFromHex(req.ExamScheduleID)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid exam_schedule_id")
+		return
+	}
 
 	var theoryEvaluations []models.TheoryEvaluation
 	var mcqEvaluations []models.MCQEvaluation
@@ -127,10 +132,11 @@ func StoreExamEvaluation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	evaluation := models.StudentExamEvaluation{
-		ID:           primitive.NewObjectID(),
-		SubmissionID: submissionID,
-		ExamID:       examID,
-		StudentID:    req.StudentID,
+		ID:             primitive.NewObjectID(),
+		SubmissionID:   submissionID,
+		ExamID:         examID,
+		ExamScheduleID: examScheduleID,
+		StudentID:      req.StudentID,
 
 		Subject:  req.Subject,
 		Semester: req.Semester,
@@ -166,13 +172,28 @@ func StoreExamEvaluation(w http.ResponseWriter, r *http.Request) {
 
 func GetExamEvaluation(w http.ResponseWriter, r *http.Request) {
 
-	examID := chi.URLParam(r, "exam_id")
+	examIDStr := chi.URLParam(r, "exam_id")
+	examID, err := primitive.ObjectIDFromHex(examIDStr)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid exam_id")
+		return
+	}
+
+	examScheduleIDstr := chi.URLParam(r, "schedule_id")
+	examScheduleID, err := primitive.ObjectIDFromHex(examScheduleIDstr)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid exam_schedule_id")
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	var evaluation map[string]interface{}
-	err := db.GetEvaluationCollection().FindOne(ctx, bson.M{"exam_id": examID}).Decode(&evaluation)
+	err = db.GetEvaluationCollection().FindOne(ctx, bson.M{
+		"exam_id":          examID,
+		"exam_schedule_id": examScheduleID,
+	}).Decode(&evaluation)
 
 	if err != nil {
 		respondError(w, http.StatusNotFound, "Evaluation not found for the given exam ID")
@@ -192,14 +213,29 @@ func GetStudentExamEvaluation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	examScheduleIDStr := r.URL.Query().Get("exam_schedule_id")
+	var examScheduleID primitive.ObjectID
+	if examScheduleIDStr != "" {
+		examScheduleID, err = primitive.ObjectIDFromHex(examScheduleIDStr)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "Invalid exam_schedule_id")
+			return
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	var evaluation map[string]interface{}
-	err = db.GetEvaluationCollection().FindOne(ctx, bson.M{
+	filter := bson.M{
 		"exam_id":    examID,
 		"student_id": studentID,
-	}).Decode(&evaluation)
+	}
+	if examScheduleIDStr != "" {
+		filter["exam_schedule_id"] = examScheduleID
+	}
+
+	var evaluation map[string]interface{}
+	err = db.GetEvaluationCollection().FindOne(ctx, filter).Decode(&evaluation)
 
 	if err != nil {
 		respondError(w, http.StatusNotFound, "Evaluation not found")

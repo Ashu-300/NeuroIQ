@@ -15,12 +15,14 @@ export const submitExamAnswers = async (answerData) => {
 };
 
 /**
- * Get a specific student's submission for an exam
- * GET /api/answer/exam/{exam_id}/student/{student_id}/submission
+ * Get a specific student's submission for an exam schedule
+ * GET /api/answer/exam/{exam_id}/student/{student_id}/{schedule_id}/schedule/submission
  * Response: submission object
  */
-export const getStudentExamSubmission = async (examId, studentId) => {
-  const response = await answerApi.get(`/api/answer/exam/${examId}/student/${studentId}/submission`);
+export const getStudentExamSubmission = async (examId, studentId, scheduleId) => {
+  const response = await answerApi.get(
+    `/api/answer/exam/${examId}/student/${studentId}/${scheduleId}/schedule/submission`,
+  );
   return response.data;
 };
 
@@ -45,22 +47,32 @@ export const storeExamEvaluation = async (payload) => {
 };
 
 /**
- * Get evaluation for a specific student's exam
- * GET /api/answer/exam/{exam_id}/student/{student_id}/evaluation
+ * Get evaluation for a specific student's exam (optionally scoped to a schedule)
+ * GET /api/answer/exam/{exam_id}/student/{student_id}/evaluation?exam_schedule_id={schedule_id}
  * Response: evaluation object or 404 if not evaluated
  */
-export const getStudentExamEvaluation = async (examId, studentId) => {
-  const response = await answerApi.get(`/api/answer/exam/${examId}/student/${studentId}/evaluation`);
+export const getStudentExamEvaluation = async (examId, studentId, scheduleId) => {
+  const response = await answerApi.get(
+    `/api/answer/exam/${examId}/student/${studentId}/evaluation`,
+    {
+      params: scheduleId ? { exam_schedule_id: scheduleId } : {},
+    },
+  );
   return response.data;
 };
 
 /**
- * Check if an evaluation exists for a student's exam
+ * Check if an evaluation exists for a student's exam (optionally per schedule)
  * Returns true if evaluated, false otherwise
  */
-export const checkStudentEvaluationExists = async (examId, studentId) => {
+export const checkStudentEvaluationExists = async (examId, studentId, scheduleId) => {
   try {
-    await answerApi.get(`/api/answer/exam/${examId}/student/${studentId}/evaluation`);
+    await answerApi.get(
+      `/api/answer/exam/${examId}/student/${studentId}/evaluation`,
+      {
+        params: scheduleId ? { exam_schedule_id: scheduleId } : {},
+      },
+    );
     return true;
   } catch (err) {
     return false;

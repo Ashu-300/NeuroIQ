@@ -12,14 +12,11 @@ type AccessClaim struct {
 	jwt.RegisteredClaims
 }
 
-
-
 // ============ Error Response ============
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message,omitempty"`
 }
-
 
 type TheoryAnswerInput struct {
 	QuestionID   string `json:"question_id" validate:"required"`
@@ -38,13 +35,14 @@ type MCQAnswerInput struct {
 }
 
 type SubmitExamAnswersRequest struct {
-	ExamID        string             `json:"exam_id" validate:"required"`
-	SessionID     string             `json:"session_id" validate:"required"`
-	Subject       string             `json:"subject"`
-	Semester      string             `json:"semester"`
-	ExamType      string             `json:"exam_type"`
-	TheoryAnswers []TheoryAnswerInput `json:"theory_answers,omitempty"`
-	MCQAnswers    []MCQAnswerInput    `json:"mcq_answers,omitempty"`
+	ExamID         string              `json:"exam_id" validate:"required"`
+	ExamScheduleID string              `json:"exam_schedule_id" validate:"required"`
+	SessionID      string              `json:"session_id" validate:"required"`
+	Subject        string              `json:"subject"`
+	Semester       string              `json:"semester"`
+	ExamType       string              `json:"exam_type"`
+	TheoryAnswers  []TheoryAnswerInput `json:"theory_answers,omitempty"`
+	MCQAnswers     []MCQAnswerInput    `json:"mcq_answers,omitempty"`
 }
 
 type SubmitExamAnswersResponse struct {
@@ -52,5 +50,3 @@ type SubmitExamAnswersResponse struct {
 	Message      string `json:"message"`
 	SubmissionID string `json:"submission_id"`
 }
-
-

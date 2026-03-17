@@ -22,7 +22,7 @@ func SetupAnswerRoutes() chi.Router {
 		protected.Post("/mixed/submit", controller.SubmitExamAnswers) // need
 
 		// Get specific student submission for an exam
-		protected.Get("/exam/{exam_id}/student/{student_id}/submission", controller.GetExamSubmission)
+		protected.Get("/exam/{exam_id}/student/{student_id}/{schedule_id}/schedule/submission", controller.GetExamSubmission)
 		
 		// Evaluate single theory answer 
 		protected.Post("/evaluate/theory", controller.EvaluateSingleTheoryAnswer)
@@ -30,7 +30,7 @@ func SetupAnswerRoutes() chi.Router {
 		// Store exam evaluation results 
 		protected.Post("/exam/evaluation", controller.StoreExamEvaluation)
 
-		protected.Get("/exam/evaluation/{exam_id}", controller.GetExamEvaluation)
+		protected.Get("/exam/evaluation/{exam_id}/{schedule_id}/schedule", controller.GetExamEvaluation)
 
 		// Get evaluation for specific student
 		protected.Get("/exam/{exam_id}/student/{student_id}/evaluation", controller.GetStudentExamEvaluation)

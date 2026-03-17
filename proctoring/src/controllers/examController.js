@@ -9,12 +9,18 @@ const { getElapsedSeconds } = require('../utils/time');
 async function getMyStatus(req, res) {
     try {
         const { exam_id } = req.params;
+        const { exam_schedule_id } = req.query || {};
         const currentUser = req.currentUser;
 
-        const sessions = await ExamSession.find({
+        const baseFilter = {
             student_id: currentUser.userId,
             exam_id,
-        }).sort({ start_time: -1 });
+        };
+        const filter = exam_schedule_id
+            ? { ...baseFilter, exam_schedule_id }
+            : baseFilter;
+
+        const sessions = await ExamSession.find(filter).sort({ start_time: -1 });
 
         const session = sessions[0];
         if (!session) {
@@ -69,7 +75,7 @@ async function getMyStatus(req, res) {
 
 async function startExam(req, res) {
     try {
-        const { exam_id } = req.body;
+        const { exam_id , exam_schedule_id } = req.body;
         const currentUser = req.currentUser;
 
         if (!exam_id) {
@@ -79,6 +85,7 @@ async function startExam(req, res) {
         const submittedSession = await ExamSession.findOne({
             student_id: currentUser.userId,
             exam_id,
+            exam_schedule_id,
             status: { $in: [ExamStatusEnum.SUBMITTED, ExamStatusEnum.AUTO_SUBMITTED] },
         });
 
@@ -91,6 +98,7 @@ async function startExam(req, res) {
         const existingSession = await ExamSession.findOne({
             student_id: currentUser.userId,
             exam_id,
+            exam_schedule_id,
             status: ExamStatusEnum.ACTIVE,
         });
 
@@ -98,6 +106,7 @@ async function startExam(req, res) {
             _id: uuidv4(),
             student_id: currentUser.userId,
             exam_id,
+            exam_schedule_id,
             status: ExamStatusEnum.ACTIVE,
             start_time: new Date(),
         }).save();
@@ -105,6 +114,7 @@ async function startExam(req, res) {
         return res.status(200).json({
             session_id: session._id,
             exam_id: session.exam_id,
+            exam_schedule_id: session.exam_schedule_id,
             start_time: session.start_time,
             status: session.status,
         });
@@ -188,10 +198,10 @@ async function getExamStudents(req, res) {
 
 async function getExamStudentsReports(req, res) {
     try {
-        const { exam_id } = req.params;
-
-        const sessions = await ExamSession.find({ exam_id });
-        const reports = await ProctoringReport.find({ exam_id });
+        const { exam_id, exam_schedule_id } = req.params;
+        // For teacher views, fetch all students' sessions and reports for this exam + schedule
+        const sessions = await ExamSession.find({ exam_id, exam_schedule_id });
+        const reports = await ProctoringReport.find({ exam_id, exam_schedule_id });
         const reportMap = new Map(reports.map((r) => [r.session_id, r]));
 
         const students = sessions.map((session) => {

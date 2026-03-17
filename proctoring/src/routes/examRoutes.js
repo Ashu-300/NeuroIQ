@@ -14,7 +14,7 @@ router.get('/:exam_id/my-status', authMiddleware, getMyStatus);
 router.post('/start', authMiddleware, startExam);
 router.get('/status', authMiddleware, getExamStatus);
 router.get('/:exam_id/students', authMiddleware, getExamStudents);
-router.get('/:exam_id/students/reports', authMiddleware, getExamStudentsReports);
+router.get('/:exam_id/students/:exam_schedule_id/reports', authMiddleware, getExamStudentsReports);
 router.get('/report/:session_id', authMiddleware, getSessionReport);
 
 module.exports = router;

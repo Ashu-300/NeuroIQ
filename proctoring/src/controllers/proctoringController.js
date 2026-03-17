@@ -49,10 +49,29 @@ function getSeverity(prob) {
 async function receiveProctoringData(payload) {
     try {
 
-        const { session_id, student_id, exam_id, cheating_probability } = payload;
+        const { session_id, student_id: payloadStudentId, exam_id: payloadExamId, exam_schedule_id: payloadScheduleId, cheating_probability } = payload;
 
         if (!session_id) {
             return { status: "error", message: "session_id missing" };
+        }
+
+        // Ensure we always have exam_id, exam_schedule_id and student_id
+        let student_id = payloadStudentId;
+        let exam_id = payloadExamId;
+        let exam_schedule_id = payloadScheduleId;
+
+        if (!exam_id || !exam_schedule_id || !student_id) {
+            const session = await ExamSession.findById(session_id).select('student_id exam_id exam_schedule_id');
+            if (session) {
+                if (!student_id) student_id = session.student_id;
+                if (!exam_id) exam_id = session.exam_id;
+                if (!exam_schedule_id) exam_schedule_id = session.exam_schedule_id;
+            }
+        }
+
+        if (!exam_schedule_id) {
+            console.warn('Proctoring receiveProctoringData: missing exam_schedule_id for session', session_id);
+            return { status: "error", message: "exam_schedule_id missing for session" };
         }
 
         let tracker = activeSessions.get(session_id);
@@ -62,6 +81,7 @@ async function receiveProctoringData(payload) {
                 session_id,
                 student_id,
                 exam_id,
+                exam_schedule_id,
                 sum_probability: 0,
                 count: 0,
                 max_probability: 0,
@@ -90,6 +110,8 @@ async function receiveProctoringData(payload) {
                 _id: uuidv4(),
                 session_id,
                 student_id,
+                exam_id,
+                exam_schedule_id,
                 violation_type: ViolationTypeEnum.CHEATING_PROBABILITY,
                 severity,
                 cheating_probability,
@@ -142,9 +164,9 @@ async function finalizeProctoring(session_id) {
 }
 
 async function getProctoringReport(req,res) {
-    var {exam_id , student_id} = req.query;
+    var {exam_id , student_id , exam_schedule_id} = req.query;
     try {
-        const report = await ProctoringReport.findOne({ exam_id, student_id });
+        const report = await ProctoringReport.findOne({ exam_id, student_id, exam_schedule_id });
         if (!report) {
             return res.status(404).json({ status: "error", message: "Report not found" });
         }

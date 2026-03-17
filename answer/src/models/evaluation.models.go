@@ -11,6 +11,7 @@ type StudentExamEvaluation struct {
 	SubmissionID  primitive.ObjectID `bson:"submission_id" json:"submission_id"`
 	ExamID        primitive.ObjectID `bson:"exam_id" json:"exam_id"`
 	StudentID     string             `bson:"student_id" json:"student_id"`
+	ExamScheduleID primitive.ObjectID             `bson:"exam_schedule_id" json:"exam_schedule_id"`
 
 	Subject  string `bson:"subject" json:"subject"`
 	Semester string `bson:"semester" json:"semester"`

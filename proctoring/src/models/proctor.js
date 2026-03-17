@@ -24,6 +24,8 @@ const examSessionSchema = new mongoose.Schema({
 
     exam_id: { type: String, required: true, index: true },
 
+    exam_schedule_id: { type: String, required: true, index: true },
+
     status: {
         type: String,
         enum: Object.values(ExamStatusEnum),
@@ -49,6 +51,10 @@ const violationSchema = new mongoose.Schema({
     session_id: { type: String, required: true, index: true },
 
     student_id: { type: String, required: true },
+
+    exam_id: { type: String, required: true, index: true },
+
+    exam_schedule_id: { type: String, required: true, index: true },
 
     violation_type: {
         type: String,
@@ -81,6 +87,8 @@ const proctoringReportSchema = new mongoose.Schema({
     student_id: { type: String, required: true },
 
     exam_id: { type: String, required: true, index: true },
+
+    exam_schedule_id: { type: String, required: true, index: true },
 
     start_time: { type: Date, required: true },
 

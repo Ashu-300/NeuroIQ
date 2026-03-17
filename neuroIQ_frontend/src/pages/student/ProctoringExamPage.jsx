@@ -284,7 +284,7 @@ const ProctoringExamPage = () => {
     };
   }, [exam, examStarted, preflightAttempt, sessionId]);
 
-  // If session_id is missing or doesn't match current exam, return to exam list.
+  // If session_id is missing or doesn't match current scheduled exam, return to exam list.
   useEffect(() => {
     if (!exam) {
       navigate('/student/exams');
@@ -301,7 +301,13 @@ const ProctoringExamPage = () => {
       return;
     }
 
-    if (persistedSession?.exam_id && persistedSession.exam_id !== (exam.schedule_id || exam.id || exam.exam_id || exam.question_bank_id)) {
+    const currentScheduleId = exam.schedule_id || exam.id;
+
+    if (
+      persistedSession?.exam_schedule_id &&
+      currentScheduleId &&
+      persistedSession.exam_schedule_id !== currentScheduleId
+    ) {
       setToast({
         show: true,
         message: 'Session mismatch detected. Please restart the exam flow.',
@@ -770,6 +776,7 @@ const ProctoringExamPage = () => {
       const separatedAnswers = buildSeparatedAnswers();
       const answerPayload = {
         exam_id: exam.question_bank_id || exam.id,
+        exam_schedule_id: exam.schedule_id || exam.id,
         session_id: sessionId,
         subject: exam.subject || '',
         semester: exam.semester || '',
@@ -1143,7 +1150,7 @@ const ProctoringExamPage = () => {
                       Your Answer:
                     </label>
                     <textarea
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[300px] text-gray-900 resize-y"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-75 text-gray-900 resize-y"
                       placeholder="Type your answer here..."
                       value={answers[currentQuestion.id] || ''}
                       onChange={(e) =>

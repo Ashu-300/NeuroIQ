@@ -26,19 +26,25 @@ export const clearPersistedActiveSession = () => {
 	localStorage.removeItem(ACTIVE_SESSION_KEY);
 };
 
-export const startExam = async ({ exam_id }) => {
-	const response = await proctoringApi.post('/api/proctoring/exam/start', { exam_id });
+export const startExam = async ({ exam_id, exam_schedule_id }) => {
+	const response = await proctoringApi.post('/api/proctoring/exam/start', {
+		exam_id,
+		exam_schedule_id,
+	});
 	persistActiveSession({
 		session_id: response.data?.session_id,
 		exam_id: response.data?.exam_id,
+		exam_schedule_id: response.data?.exam_schedule_id,
 		start_time: response.data?.start_time,
 		status: response.data?.status,
 	});
 	return response.data;
 };
 
-export const getMyExamStatus = async (examId) => {
-	const response = await proctoringApi.get(`/api/proctoring/exam/${examId}/my-status`);
+export const getMyExamStatus = async (examId, examScheduleId) => {
+	const response = await proctoringApi.get(`/api/proctoring/exam/${examId}/my-status`, {
+		params: examScheduleId ? { exam_schedule_id: examScheduleId } : {},
+	});
 	return response.data;
 };
 
@@ -69,11 +75,12 @@ export const getExamReport = async (sessionId) => {
 	}
 };
 
-export const getProctoringReport = async ({ examId, studentId, sessionId }) => {
-	if (examId && studentId) {
+export const getProctoringReport = async ({ examId, examScheduleId, studentId, sessionId }) => {
+	if (examId && examScheduleId && studentId) {
 		const response = await proctoringApi.get('/api/proctoring/proctor/report', {
 			params: {
 				exam_id: examId,
+				exam_schedule_id: examScheduleId,
 				student_id: studentId,
 			},
 		});
@@ -87,8 +94,10 @@ export const getProctoringReport = async ({ examId, studentId, sessionId }) => {
 	throw new Error('getProctoringReport requires examId+studentId or sessionId');
 };
 
-export const getExamStudentsWithReports = async (examId) => {
-	const response = await proctoringApi.get(`/api/proctoring/exam/${examId}/students/reports`);
+export const getExamStudentsWithReports = async (examId, examScheduleId) => {
+	const response = await proctoringApi.get(
+		`/api/proctoring/exam/${examId}/students/${examScheduleId}/reports`,
+	);
 	return response.data;
 };
 

@@ -48,12 +48,12 @@ const EvaluateSubmissionPage = () => {
       setLoading(true);
       setError(null);
       // Answers are stored with question_bank_id as exam_id, not schedule_id
-      const data = await getStudentExamSubmission(answerExamId, studentId);
+      const data = await getStudentExamSubmission(answerExamId, studentId, examId);
       setSubmission(data);
       
       // Try to fetch existing evaluation
       try {
-        const evalData = await getStudentExamEvaluation(answerExamId, studentId);
+  		const evalData = await getStudentExamEvaluation(answerExamId, studentId, examId);
         if (evalData) {
           setExistingEvaluation(evalData);
           setIsViewMode(true);
@@ -200,6 +200,7 @@ const EvaluateSubmissionPage = () => {
       await storeExamEvaluation({
         submission_id: normalizeId(submission._id || submission.id),
         exam_id: answerExamId,
+        exam_schedule_id: examId,
         student_id: studentId,
         subject: submission?.subject || examSubject || '',
         semester: submission?.semester || '',
@@ -254,7 +255,7 @@ const EvaluateSubmissionPage = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-100">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
         <span className="ml-3 text-gray-600">Loading submission...</span>
       </div>

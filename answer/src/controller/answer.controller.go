@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"github.com/go-playground/validator/v10"
 )
 
 // ============ HELPER FUNCTIONS ============
@@ -27,7 +27,6 @@ func respondJSON(w http.ResponseWriter, status int, data interface{}) {
 func respondError(w http.ResponseWriter, status int, message string) {
 	respondJSON(w, status, dto.ErrorResponse{Error: message})
 }
-
 
 // ============ ANSWER CONTROLLERS ============
 
@@ -56,6 +55,12 @@ func SubmitExamAnswers(w http.ResponseWriter, r *http.Request) {
 	examID, err := primitive.ObjectIDFromHex(req.ExamID)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid exam_id")
+		return
+	}
+
+	examScheduleID, err := primitive.ObjectIDFromHex(req.ExamScheduleID)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid exam_schedule_id")
 		return
 	}
 
@@ -100,13 +105,14 @@ func SubmitExamAnswers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	submission := models.StudentExamAnswer{
-		ID:            primitive.NewObjectID(),
-		ExamID:        examID,
-		StudentID:     studentID,
-		ExamSessionID: req.SessionID,
-		Subject:       req.Subject,
-		Semester:      req.Semester,
-		ExamType:      req.ExamType,
+		ID:             primitive.NewObjectID(),
+		ExamID:         examID,
+		StudentID:      studentID,
+		ExamSessionID:  req.SessionID,
+		ExamScheduleID: examScheduleID,
+		Subject:        req.Subject,
+		Semester:       req.Semester,
+		ExamType:       req.ExamType,
 
 		Answers: models.AnswerSection{
 			TheoryAnswers: theoryAnswers,
@@ -141,7 +147,14 @@ func GetExamSubmission(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "Invalid exam_id")
 		return
 	}
+
 	studentID := chi.URLParam(r, "student_id")
+	examScheduleIDstr := chi.URLParam(r, "schedule_id")
+	examScheduleID, err := primitive.ObjectIDFromHex(examScheduleIDstr)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid exam_schedule_id")
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
@@ -149,6 +162,7 @@ func GetExamSubmission(w http.ResponseWriter, r *http.Request) {
 	filter := bson.M{
 		"exam_id":    examID,
 		"student_id": studentID,
+		"exam_schedule_id": examScheduleID,
 	}
 
 	var submissionData map[string]interface{}
@@ -160,13 +174,3 @@ func GetExamSubmission(w http.ResponseWriter, r *http.Request) {
 
 	respondJSON(w, http.StatusOK, submissionData)
 }
-
-
-
-
-
-
-
-
-
-

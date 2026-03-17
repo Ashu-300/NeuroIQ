@@ -25,6 +25,7 @@ async function saveProctoringReport(session, stats) {
     const payload = {
     student_id: session.student_id,
     exam_id: session.exam_id,
+    exam_schedule_id: session.exam_schedule_id,
     start_time: session.start_time,
     end_time: session.end_time || new Date(),
     duration_seconds: durationSeconds,
